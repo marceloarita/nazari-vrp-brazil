@@ -36,21 +36,21 @@ def tour_length(tour_indices, coords):
 
 
 def save_checkpoint(path, actor, critic, actor_opt, critic_opt, epoch):
-    """Save model and optimizer states."""
+    """Save model and optimizer states. critic and critic_opt may be None."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     torch.save(
         {
             "epoch": epoch,
             "actor_state": actor.state_dict(),
-            "critic_state": critic.state_dict(),
             "actor_opt_state": actor_opt.state_dict(),
-            "critic_opt_state": critic_opt.state_dict(),
+            "critic_state": critic.state_dict() if critic is not None else None,
+            "critic_opt_state": critic_opt.state_dict() if critic_opt is not None else None,
         },
         path,
     )
 
 
-def load_checkpoint(path, actor, critic, actor_opt=None, critic_opt=None):
+def load_checkpoint(path, actor, critic=None, actor_opt=None, critic_opt=None):
     """
     Load model and optimizer states from a checkpoint file.
 
@@ -59,10 +59,11 @@ def load_checkpoint(path, actor, critic, actor_opt=None, critic_opt=None):
     """
     ckpt = torch.load(path, map_location="cpu")
     actor.load_state_dict(ckpt["actor_state"])
-    critic.load_state_dict(ckpt["critic_state"])
+    if critic is not None and ckpt.get("critic_state") is not None:
+        critic.load_state_dict(ckpt["critic_state"])
     if actor_opt is not None:
         actor_opt.load_state_dict(ckpt["actor_opt_state"])
-    if critic_opt is not None:
+    if critic_opt is not None and ckpt.get("critic_opt_state") is not None:
         critic_opt.load_state_dict(ckpt["critic_opt_state"])
     return ckpt["epoch"]
 

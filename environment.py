@@ -23,7 +23,7 @@ def generate_instance(n_customers, vehicle_capacity=1.0, distribution="uniform",
         raise ValueError(f"Unknown distribution: {distribution!r}")
 
     raw_demands = np.random.randint(1, 10, n_customers).astype(np.float32)
-    demands = np.concatenate([[0.0], raw_demands / vehicle_capacity])
+    demands = np.concatenate([np.zeros(1, dtype=np.float32), raw_demands / vehicle_capacity])
     return coords, demands
 
 
