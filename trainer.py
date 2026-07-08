@@ -2,38 +2,13 @@ import os
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.distributions import Categorical
 
 import wandb
 
 from environment import VRPEnvironment, generate_batch
-from model import AttentionVRP, StaticEncoder
+from model import AttentionVRP
 from utils import save_checkpoint
-
-
-class CriticNetwork(nn.Module):
-    """
-    Estimates V(X₀) — expected reward for the whole instance.
-
-    Acts as the REINFORCE baseline. Reduces gradient variance without introducing bias.
-    Takes the initial static instance as input (mean-pooled encoded features → MLP → scalar).
-    """
-
-    def __init__(self, embed_dim=128):
-        super().__init__()
-        self.encoder = StaticEncoder(2, embed_dim)
-        self.mlp = nn.Sequential(
-            nn.Linear(embed_dim, embed_dim),
-            nn.ReLU(),
-            nn.Linear(embed_dim, 1),
-        )
-
-    def forward(self, static):
-        # static: (B, N+1, 2)
-        emb = self.encoder(static)           # (B, D, N+1)
-        pooled = emb.mean(dim=-1)            # (B, D) — mean pooling over nodes
-        return self.mlp(pooled).squeeze(-1)  # (B,)
 
 
 def rollout(actor, env, greedy=False):
@@ -71,7 +46,7 @@ def rollout(actor, env, greedy=False):
         else:
             actions = Categorical(logits=log_probs).sample()
 
-        # Mask contribution of already-finished episodes (don't accumulate log-prob after done)
+        # Each episode accumulates log-probs until its own termination; steps after done are zeroed
         step_log_p = log_probs[torch.arange(B, device=device), actions]
         step_log_p = step_log_p * (~done).float()
         log_prob_steps.append(step_log_p)
@@ -89,12 +64,19 @@ def rollout(actor, env, greedy=False):
 
 class Trainer:
     """
-    Manages the Actor-Critic REINFORCE training loop for the Nazari VRP model.
+    REINFORCE with greedy rollout baseline (Kool et al. 2019).
 
-    Actor update:  dθ = (1/N) Σ (R^n - V(X₀^n)) ∇θ log P(Y^n | X₀^n)
-    Critic update: dφ = (1/N) Σ ∇φ (R^n - V(X₀^n))²
+    NOTE: This departs from Nazari et al. (2018), which uses an exponential moving
+    average of rewards as baseline. Kool's greedy rollout baseline is more stable
+    and does not require a separate critic network.
 
-    Both networks share the same Adam optimizer with lr=1e-4 and gradient clipping at norm=2.
+    Each training step runs two rollouts over the same batch of instances:
+      1. Sampling rollout  — actions drawn from π(·|s); used to compute the loss
+      2. Greedy rollout    — actions = argmax π(·|s); used as the baseline
+
+    Actor update:
+        advantage = R_sample - R_greedy
+        loss = -(advantage * log_probs_sum).mean()
     """
 
     def __init__(
@@ -118,10 +100,7 @@ class Trainer:
         self.use_wandb = use_wandb
 
         self.actor = AttentionVRP(embed_dim=embed_dim).to(device)
-        self.critic = CriticNetwork(embed_dim=embed_dim).to(device)
-
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
-        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
 
     def train_step(self):
         """Run one training iteration over a fresh batch of instances."""
@@ -134,14 +113,15 @@ class Trainer:
         )
         env = VRPEnvironment(coords, demands)
 
-        # --- Actor rollout ---
-        log_probs_sum, rewards = rollout(self.actor, env)
+        # --- Sampling rollout (gradient flows through log_probs_sum) ---
+        log_probs_sum, rewards_sample = rollout(self.actor, env, greedy=False)
 
-        # --- Critic baseline (detached — does not flow gradient into actor update) ---
-        baseline = self.critic(coords).detach()
+        # --- Greedy rollout as baseline (no gradient needed) ---
+        with torch.no_grad():
+            _, rewards_greedy = rollout(self.actor, env, greedy=True)
 
-        # --- Actor loss: REINFORCE with baseline ---
-        advantage = rewards - baseline
+        # --- Actor loss: REINFORCE with greedy baseline (Kool 2019) ---
+        advantage = rewards_sample - rewards_greedy
         actor_loss = -(advantage * log_probs_sum).mean()
 
         self.actor_opt.zero_grad()
@@ -149,20 +129,11 @@ class Trainer:
         nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
         self.actor_opt.step()
 
-        # --- Critic loss: MSE against observed reward ---
-        v_pred = self.critic(coords)
-        critic_loss = F.mse_loss(v_pred, rewards.detach())
-
-        self.critic_opt.zero_grad()
-        critic_loss.backward()
-        nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
-        self.critic_opt.step()
-
         return {
             "actor_loss": actor_loss.item(),
-            "critic_loss": critic_loss.item(),
-            "reward_mean": rewards.mean().item(),
-            "reward_std": rewards.std().item(),
+            "reward_mean": rewards_sample.mean().item(),
+            "reward_std": rewards_sample.std().item(),
+            "reward_greedy_mean": rewards_greedy.mean().item(),
         }
 
     def train(self, n_epochs, save_every=500, checkpoint_dir="checkpoints"):
@@ -174,6 +145,7 @@ class Trainer:
                     "batch_size": self.batch_size,
                     "distribution": self.distribution,
                     "device": self.device,
+                    "baseline": "greedy_rollout",
                 },
             )
 
@@ -187,8 +159,8 @@ class Trainer:
                 print(
                     f"Epoch {epoch:5d} | "
                     f"reward: {metrics['reward_mean']:.4f} ± {metrics['reward_std']:.4f} | "
-                    f"actor_loss: {metrics['actor_loss']:.4f} | "
-                    f"critic_loss: {metrics['critic_loss']:.4f}"
+                    f"greedy: {metrics['reward_greedy_mean']:.4f} | "
+                    f"actor_loss: {metrics['actor_loss']:.4f}"
                 )
 
             if epoch % save_every == 0:
@@ -196,9 +168,9 @@ class Trainer:
                 save_checkpoint(
                     os.path.join(checkpoint_dir, f"epoch_{epoch:05d}.pt"),
                     self.actor,
-                    self.critic,
+                    None,
                     self.actor_opt,
-                    self.critic_opt,
+                    None,
                     epoch,
                 )
 

@@ -4,26 +4,42 @@ import torch.nn.functional as F
 
 
 class StaticEncoder(nn.Module):
-    """Encodes node coordinates via 1×1 convolution (weight shared across all nodes)."""
+    """
+    Projects node coordinates (x, y) into a D-dimensional embedding.
+
+    Uses a 1x1 convolution — equivalent to a shared Linear(2→D) applied independently
+    to every node. Same weights for all nodes; no cross-node context.
+
+    Input:  (B, N+1, 2)    — coordinates for each node
+    Output: (B, D, N+1)    — embedding per node
+    """
 
     def __init__(self, input_dim=2, embed_dim=128):
         super().__init__()
         self.conv = nn.Conv1d(input_dim, embed_dim, kernel_size=1)
 
     def forward(self, x):
-        # x: (B, N, input_dim) → (B, embed_dim, N)
+        # x: (B, N+1, 2) → transpose → (B, 2, N+1) → conv → (B, D, N+1)
         return self.conv(x.transpose(1, 2))
 
 
 class DynamicEncoder(nn.Module):
-    """Encodes dynamic state [remaining_demand, remaining_capacity] via 1×1 convolution."""
+    """
+    Projects dynamic state [remaining_demand, remaining_capacity] into a D-dimensional embedding.
+
+    Same architecture as StaticEncoder — shared Linear(2→D) per node, recomputed every step
+    because the dynamic state changes as the vehicle visits nodes.
+
+    Input:  (B, N+1, 2)    — [demand, remaining_cap] for each node
+    Output: (B, D, N+1)    — embedding per node
+    """
 
     def __init__(self, input_dim=2, embed_dim=128):
         super().__init__()
         self.conv = nn.Conv1d(input_dim, embed_dim, kernel_size=1)
 
     def forward(self, x):
-        # x: (B, N, input_dim) → (B, embed_dim, N)
+        # x: (B, N+1, 2) → transpose → (B, 2, N+1) → conv → (B, D, N+1)
         return self.conv(x.transpose(1, 2))
 
 
@@ -82,7 +98,9 @@ class Attention(nn.Module):
 
         return F.log_softmax(logits, dim=-1)                              # (B, N)
 
-
+#########################
+# Actor model
+#########################
 class AttentionVRP(nn.Module):
     """
     Nazari et al. (2018) attention model for CVRP.
