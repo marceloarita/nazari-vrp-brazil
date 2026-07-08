@@ -1,0 +1,201 @@
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
+
+DEPOT_IDX = 0
+
+
+def generate_instance(n_customers, vehicle_capacity=1.0, distribution="uniform", kde=None):
+    """
+    Returns:
+        coords:  (n_customers+1, 2) float32, values in [0,1]; index 0 = depot
+        demands: (n_customers+1,) float32, normalized by vehicle_capacity; depot = 0.0
+    """
+    if distribution == "uniform":
+        coords = np.random.uniform(0, 1, (n_customers + 1, 2)).astype(np.float32)
+    elif distribution == "kde":
+        if kde is None:
+            raise ValueError("KDE object required for 'kde' distribution")
+        customer_xy = kde.sample(n_customers).astype(np.float32)
+        depot_xy = np.random.uniform(0, 1, (1, 2)).astype(np.float32)
+        coords = np.vstack([depot_xy, customer_xy])
+    else:
+        raise ValueError(f"Unknown distribution: {distribution!r}")
+
+    raw_demands = np.random.randint(1, 10, n_customers).astype(np.float32)
+    demands = np.concatenate([[0.0], raw_demands / vehicle_capacity])
+    return coords, demands
+
+
+def generate_batch(batch_size, n_customers, vehicle_capacity=1.0, distribution="uniform", kde=None, device="cpu",):
+    """
+    Returns tensors ready for the model:
+        coords:  (B, n_customers+1, 2)
+        demands: (B, n_customers+1)
+    """
+    instances = [
+        generate_instance(n_customers, vehicle_capacity, distribution, kde)
+        for _ in range(batch_size)
+    ]
+    coords = torch.tensor(np.stack([c for c, _ in instances]), device=device)
+    demands = torch.tensor(np.stack([d for _, d in instances]), device=device)
+    return coords, demands
+
+class VRPEnvironment:
+    """
+    Batched CVRP environment. Maintains episode state and enforces the masking scheme.
+
+    State representation:
+      static:  (B, N+1, 2) — node coordinates (fixed throughout episode)
+      dynamic: (B, N+1, 2) — [remaining_demand, remaining_capacity] (updated each step)
+      mask:    (B, N+1)    — True = node is forbidden at the current step
+
+    Masking rules (Nazari et al. 2018):
+      Rule 1: customer with demand == 0 is masked (already served)
+      Rule 2: if all customers are unreachable, only depot remains (implicit — depot never masked)
+      Rule 3: customer with demand > remaining capacity is masked
+    """
+
+    def __init__(self, coords, demands, vehicle_capacity=1.0):
+        self.B, self.n_nodes = demands.shape
+        self.device = coords.device
+        self.static = coords
+        self._init_demands = demands.clone()
+        self.vehicle_capacity = vehicle_capacity
+        self._reset_buffers()
+
+    def _reset_buffers(self):
+        self.demands = self._init_demands.clone()
+        self.remaining_cap = torch.ones(self.B, device=self.device)
+        self.current_node = torch.zeros(self.B, dtype=torch.long, device=self.device)
+        self.total_dist = torch.zeros(self.B, device=self.device)
+        # Tour history: list of (B,) tensors, one per step
+        self.tour: list = []
+
+    def reset(self):
+        self._reset_buffers()
+        return self.static, self._dynamic(), self._mask()
+
+    def step(self, actions):
+        """
+        Args:
+            actions: (B,) long — index of the next node to visit
+
+        Returns:
+            (static, dynamic, mask), reward (B,), done (B,)
+
+        Reward is sparse: non-zero only at the terminal step (all served + at depot).
+        """
+        B = self.B
+        batch = torch.arange(B, device=self.device)
+
+        prev_coords = self.static[batch, self.current_node]
+        next_coords = self.static[batch, actions]
+        self.total_dist += torch.norm(next_coords - prev_coords, dim=-1)
+
+        is_customer = actions != DEPOT_IDX
+
+        # Consume demand before zeroing it out
+        action_demand = self.demands[batch, actions]
+
+        self.remaining_cap = torch.where(
+            is_customer,
+            self.remaining_cap - action_demand,
+            torch.ones_like(self.remaining_cap),  # reload at depot
+        )
+        self.remaining_cap = self.remaining_cap.clamp(min=0.0)
+
+        # Zero out demand for visited customer; leave depot demand unchanged (already 0)
+        self.demands[batch, actions] = torch.where(
+            is_customer, torch.zeros_like(action_demand), action_demand
+        )
+
+        self.current_node = actions
+        self.tour.append(actions.clone())
+
+        all_served = (self.demands[:, 1:] == 0).all(dim=-1)
+        done = all_served & ~is_customer  # all served AND returned to depot
+
+        reward = torch.where(done, -self.total_dist, torch.zeros_like(self.total_dist))
+        return (self.static, self._dynamic(), self._mask()), reward, done
+
+    def _dynamic(self):
+        cap = self.remaining_cap.unsqueeze(-1).expand_as(self.demands)
+        return torch.stack([self.demands, cap], dim=-1)  # (B, N+1, 2)
+
+    def _mask(self):
+        mask = torch.zeros(self.B, self.n_nodes, dtype=torch.bool, device=self.device)
+
+        # Rule 1: already-served customers
+        mask[:, 1:] = self.demands[:, 1:] == 0
+
+        # Rule 3: demand exceeds remaining vehicle capacity
+        mask[:, 1:] |= self.demands[:, 1:] > self.remaining_cap.unsqueeze(-1)
+
+        # Depot is always reachable (Rule 2 implicit: if all customers masked, only depot remains)
+        mask[:, DEPOT_IDX] = False
+
+        return mask
+
+    def render(self, batch_idx: int = 0, title: str | None = None) -> None:
+        """Plot nodes and route for one instance in the batch."""
+        coords = self.static[batch_idx].cpu().numpy()          # (N+1, 2)
+
+        fig, ax = plt.subplots(figsize=(7, 7))
+        fig.patch.set_facecolor("#f8f9fa")
+        ax.set_facecolor("#f8f9fa")
+
+        # --- Route segments (drawn first so nodes appear on top) ---
+        if self.tour:
+            route_colors = ["#5c85d6", "#4aab8f", "#c96b4a", "#7b62b8", "#c9943a", "#b85c7a"]
+            tour    = [0] + [t[batch_idx].item() for t in self.tour]
+            segment = [0]
+            color_idx = 0
+            for node in tour[1:]:
+                segment.append(node)
+                if node == 0:
+                    ax.plot(coords[segment, 0], coords[segment, 1],
+                            color=route_colors[color_idx % len(route_colors)],
+                            lw=2.0, alpha=0.8, zorder=1)
+                    color_idx += 1
+                    segment = [0]
+
+        # --- Customer nodes: yellow circle + node index inside ---
+        for i in range(1, len(coords)):
+            ax.scatter(coords[i, 0], coords[i, 1],
+                       s=260, color="#ffeaa7", edgecolors="#fdcb6e",
+                       linewidth=1.2, zorder=3)
+            ax.text(coords[i, 0], coords[i, 1], str(i),
+                    ha="center", va="center",
+                    fontsize=9, fontweight="bold", color="#2d3436", zorder=4)
+
+        # --- Depot: red square with "D" ---
+        ax.scatter(coords[0, 0], coords[0, 1],
+                   s=200, marker="s", color="#ff7675",
+                   edgecolors="#d63031", linewidth=1.5, zorder=5)
+        ax.text(coords[0, 0], coords[0, 1], "D",
+                ha="center", va="center",
+                fontsize=9, fontweight="bold", color="white", zorder=6)
+
+        # --- Axes style ---
+        ax.set_xlim(-0.05, 1.05)
+        ax.set_ylim(-0.05, 1.05)
+        ax.set_xticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+        ax.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+        ax.tick_params(labelsize=8, color="#b2bec3")
+        ax.set_xlabel("X", fontsize=10, color="#636e72")
+        ax.set_ylabel("Y", fontsize=10, color="#636e72")
+        for spine in ax.spines.values():
+            spine.set_color("#dfe6e9")
+            spine.set_linewidth(1.0)
+
+        if title:
+            ax.set_title(title, fontsize=13, color="#2d3436", pad=12)
+
+        plt.tight_layout()
+        plt.show()
+
+    @property
+    def final_reward(self):
+        """Returns -total_dist for all episodes (call after done.all() is True)."""
+        return -self.total_dist
