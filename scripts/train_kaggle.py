@@ -38,7 +38,7 @@ for cfg in CONFIGS:
         lr=LR,
         max_grad_norm=MAX_GRAD_NORM,
         device=device,
-        use_wandb=False,   # set True if wandb API key is configured on Kaggle
+        use_wandb=True,
         distribution="uniform",
     )
 
