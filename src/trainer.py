@@ -6,9 +6,9 @@ from torch.distributions import Categorical
 
 import wandb
 
-from environment import VRPEnvironment, generate_batch
-from model import AttentionVRP
-from utils import save_checkpoint
+from .environment import VRPEnvironment, generate_batch
+from .model import AttentionVRP
+from .utils import save_checkpoint
 
 
 def rollout(actor, env, greedy=False):

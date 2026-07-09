@@ -1,5 +1,5 @@
 import torch
-from environment import generate_batch, VRPEnvironment
+from src.environment import generate_batch, VRPEnvironment
 
 # --- Setup ---
 B = 1

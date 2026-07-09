@@ -1,5 +1,5 @@
 import torch
-from trainer import Trainer
+from src.trainer import Trainer
 
 device = "cpu"
 print(f"Device: {device}\n")

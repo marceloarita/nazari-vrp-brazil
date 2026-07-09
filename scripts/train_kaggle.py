@@ -1,5 +1,5 @@
 import torch
-from trainer import Trainer
+from src.trainer import Trainer
 
 # --- Device ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
