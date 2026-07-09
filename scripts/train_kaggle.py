@@ -7,37 +7,36 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Device: {device}\n")
 
 # --- Config ---
-# Focus on VRP10 first; extend to VRP20/VRP50 after validating convergence.
+# VRP10 only. Three baselines trained sequentially for comparison.
 # Capacity follows Nazari et al. (2018): VRP10 → 20.
-CONFIGS = [
-    {"n_customers": 10, "vehicle_capacity": 20, "batch_size": 512},
-]
-
+N_CUSTOMERS   = 10
+VEHICLE_CAP   = 20
+BATCH_SIZE    = 512
 EMBED_DIM     = 128
 LR            = 1e-4
 MAX_GRAD_NORM = 2.0
 N_EPOCHS      = 20_000
 SAVE_EVERY    = 1_000
 
-for cfg in CONFIGS:
-    n  = cfg["n_customers"]
-    vc = cfg["vehicle_capacity"]
-    bs = cfg["batch_size"]
-    checkpoint_dir = f"checkpoints/vrp{n}_cap{vc}"
+BASELINES = ["none", "ema", "greedy"]
+
+for baseline in BASELINES:
+    checkpoint_dir = f"checkpoints/vrp{N_CUSTOMERS}_cap{VEHICLE_CAP}_{baseline}"
 
     print(f"{'='*50}")
-    print(f"VRP{n} | capacity={vc} | batch={bs} | epochs={N_EPOCHS}")
+    print(f"VRP{N_CUSTOMERS} | capacity={VEHICLE_CAP} | batch={BATCH_SIZE} | baseline={baseline} | epochs={N_EPOCHS}")
 
     trainer = Trainer(
-        n_customers=n,
-        vehicle_capacity=vc,
-        batch_size=bs,
+        n_customers=N_CUSTOMERS,
+        vehicle_capacity=VEHICLE_CAP,
+        batch_size=BATCH_SIZE,
         embed_dim=EMBED_DIM,
         lr=LR,
         max_grad_norm=MAX_GRAD_NORM,
         device=device,
         use_wandb=True,
         distribution="uniform",
+        baseline=baseline,
     )
 
     print(f"Actor params: {sum(p.numel() for p in trainer.actor.parameters()):,}\n")

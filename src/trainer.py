@@ -64,19 +64,11 @@ def rollout(actor, env, greedy=False):
 
 class Trainer:
     """
-    REINFORCE with greedy rollout baseline (Kool et al. 2019).
+    REINFORCE with pluggable baseline.
 
-    NOTE: This departs from Nazari et al. (2018), which uses an exponential moving
-    average of rewards as baseline. Kool's greedy rollout baseline is more stable
-    and does not require a separate critic network.
-
-    Each training step runs two rollouts over the same batch of instances:
-      1. Sampling rollout  — actions drawn from π(·|s); used to compute the loss
-      2. Greedy rollout    — actions = argmax π(·|s); used as the baseline
-
-    Actor update:
-        advantage = R_sample - R_greedy
-        loss = -(advantage * log_probs_sum).mean()
+    baseline="none"   — vanilla REINFORCE (Williams 1992), no baseline
+    baseline="ema"    — exponential moving average of past rewards (Nazari 2018)
+    baseline="greedy" — greedy rollout baseline (Kool 2019)
 
     GPU optimizations:
       - Data generated directly on device (no CPU→GPU transfer for uniform distribution)
@@ -95,6 +87,8 @@ class Trainer:
         use_wandb=True,
         distribution="uniform",
         kde=None,
+        baseline="greedy",
+        ema_alpha=0.99,
     ):
         self.n_customers = n_customers
         self.vehicle_capacity = vehicle_capacity
@@ -104,6 +98,9 @@ class Trainer:
         self.distribution = distribution
         self.kde = kde
         self.use_wandb = use_wandb
+        self.baseline = baseline
+        self.ema_alpha = ema_alpha
+        self.ema_value = 0.0  # running EMA state (used only when baseline="ema")
 
         self.actor = AttentionVRP(embed_dim=embed_dim).to(device)
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
@@ -125,15 +122,25 @@ class Trainer:
         env = VRPEnvironment(coords, demands, vehicle_capacity=self.vehicle_capacity)
 
         with torch.amp.autocast("cuda", enabled=self.use_amp):
-            # --- Sampling rollout (gradient flows through log_probs_sum) ---
             log_probs_sum, rewards_sample = rollout(self.actor, env, greedy=False)
 
-            # --- Greedy rollout as baseline (no gradient needed) ---
-            with torch.no_grad():
-                _, rewards_greedy = rollout(self.actor, env, greedy=True)
+            if self.baseline == "greedy":
+                with torch.no_grad():
+                    _, rewards_greedy = rollout(self.actor, env, greedy=True)
+                advantage = rewards_sample - rewards_greedy
+                baseline_value = rewards_greedy.mean().item()
 
-            # --- Actor loss: REINFORCE with greedy baseline (Kool 2019) ---
-            advantage = rewards_sample - rewards_greedy
+            elif self.baseline == "ema":
+                advantage = rewards_sample - self.ema_value
+                baseline_value = self.ema_value
+                # Update EMA after computing advantage
+                self.ema_value = (self.ema_alpha * self.ema_value +
+                                  (1 - self.ema_alpha) * rewards_sample.mean().item())
+
+            else:  # "none" — vanilla REINFORCE
+                advantage = rewards_sample
+                baseline_value = 0.0
+
             actor_loss = -(advantage * log_probs_sum).mean()
 
         self.actor_opt.zero_grad()
@@ -152,19 +159,20 @@ class Trainer:
             "actor_loss": actor_loss.item(),
             "reward_mean": rewards_sample.mean().item(),
             "reward_std": rewards_sample.std().item(),
-            "reward_greedy_mean": rewards_greedy.mean().item(),
+            "baseline_value": baseline_value,
         }
 
     def train(self, n_epochs, save_every=500, checkpoint_dir="checkpoints"):
         if self.use_wandb:
             wandb.init(
                 project="nazari-vrp-brazil",
+                name=f"vrp{self.n_customers}_{self.baseline}",
                 config={
                     "n_customers": self.n_customers,
                     "batch_size": self.batch_size,
                     "distribution": self.distribution,
                     "device": self.device,
-                    "baseline": "greedy_rollout",
+                    "baseline": self.baseline,
                 },
             )
 
@@ -178,7 +186,7 @@ class Trainer:
                 print(
                     f"Epoch {epoch:5d} | "
                     f"reward: {metrics['reward_mean']:.4f} ± {metrics['reward_std']:.4f} | "
-                    f"greedy: {metrics['reward_greedy_mean']:.4f} | "
+                    f"baseline: {metrics['baseline_value']:.4f} | "
                     f"actor_loss: {metrics['actor_loss']:.4f}"
                 )
 
