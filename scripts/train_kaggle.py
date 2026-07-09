@@ -6,13 +6,11 @@ from src.trainer import Trainer
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Device: {device}\n")
 
-# --- Configs ---
-# Capacities follow Nazari et al. (2018): VRP10→20, VRP20→30, VRP50→40
-# Each config trains an independent model saved in its own checkpoint directory.
+# --- Config ---
+# Focus on VRP10 first; extend to VRP20/VRP50 after validating convergence.
+# Capacity follows Nazari et al. (2018): VRP10 → 20.
 CONFIGS = [
-    {"n_customers": 10, "vehicle_capacity": 20,  "batch_size": 512},
-    {"n_customers": 20, "vehicle_capacity": 30,  "batch_size": 512},
-    {"n_customers": 50, "vehicle_capacity": 40,  "batch_size": 256},
+    {"n_customers": 10, "vehicle_capacity": 20, "batch_size": 512},
 ]
 
 EMBED_DIM     = 128

@@ -28,18 +28,30 @@ def generate_instance(n_customers, vehicle_capacity=1.0, distribution="uniform",
     return coords, demands
 
 
-def generate_batch(batch_size, n_customers, vehicle_capacity=1.0, distribution="uniform", kde=None, device="cpu",):
+def generate_batch(batch_size, n_customers, vehicle_capacity=1.0, distribution="uniform", kde=None, device="cpu"):
     """
     Returns tensors ready for the model:
         coords:  (B, n_customers+1, 2)
         demands: (B, n_customers+1)
+
+    For uniform distribution, tensors are generated directly on `device` (avoids CPU→GPU transfer).
+    KDE distribution falls back to numpy (CPU only).
     """
-    instances = [
-        generate_instance(n_customers, vehicle_capacity, distribution, kde)
-        for _ in range(batch_size)
-    ]
-    coords = torch.tensor(np.stack([c for c, _ in instances]), device=device)
-    demands = torch.tensor(np.stack([d for _, d in instances]), device=device)
+    if distribution == "kde":
+        instances = [
+            generate_instance(n_customers, vehicle_capacity, distribution, kde)
+            for _ in range(batch_size)
+        ]
+        coords = torch.tensor(np.stack([c for c, _ in instances]), device=device)
+        demands = torch.tensor(np.stack([d for _, d in instances]), device=device)
+        return coords, demands
+
+    # Uniform: generate directly on target device
+    N = n_customers + 1
+    coords = torch.rand(batch_size, N, 2, device=device)
+    raw_demands = torch.randint(1, 10, (batch_size, n_customers), device=device).float()
+    depot_demand = torch.zeros(batch_size, 1, device=device)
+    demands = torch.cat([depot_demand, raw_demands / vehicle_capacity], dim=1)
     return coords, demands
 
 class VRPEnvironment:

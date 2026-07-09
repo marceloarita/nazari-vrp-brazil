@@ -77,6 +77,10 @@ class Trainer:
     Actor update:
         advantage = R_sample - R_greedy
         loss = -(advantage * log_probs_sum).mean()
+
+    GPU optimizations:
+      - Data generated directly on device (no CPU→GPU transfer for uniform distribution)
+      - AMP (Automatic Mixed Precision) enabled on CUDA for ~2x throughput
     """
 
     def __init__(
@@ -104,6 +108,10 @@ class Trainer:
         self.actor = AttentionVRP(embed_dim=embed_dim).to(device)
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
 
+        # AMP: enabled only on CUDA
+        self.use_amp = device == "cuda"
+        self.scaler = torch.amp.GradScaler("cuda") if self.use_amp else None
+
     def train_step(self):
         """Run one training iteration over a fresh batch of instances."""
         coords, demands = generate_batch(
@@ -116,21 +124,29 @@ class Trainer:
         )
         env = VRPEnvironment(coords, demands, vehicle_capacity=self.vehicle_capacity)
 
-        # --- Sampling rollout (gradient flows through log_probs_sum) ---
-        log_probs_sum, rewards_sample = rollout(self.actor, env, greedy=False)
+        with torch.amp.autocast("cuda", enabled=self.use_amp):
+            # --- Sampling rollout (gradient flows through log_probs_sum) ---
+            log_probs_sum, rewards_sample = rollout(self.actor, env, greedy=False)
 
-        # --- Greedy rollout as baseline (no gradient needed) ---
-        with torch.no_grad():
-            _, rewards_greedy = rollout(self.actor, env, greedy=True)
+            # --- Greedy rollout as baseline (no gradient needed) ---
+            with torch.no_grad():
+                _, rewards_greedy = rollout(self.actor, env, greedy=True)
 
-        # --- Actor loss: REINFORCE with greedy baseline (Kool 2019) ---
-        advantage = rewards_sample - rewards_greedy
-        actor_loss = -(advantage * log_probs_sum).mean()
+            # --- Actor loss: REINFORCE with greedy baseline (Kool 2019) ---
+            advantage = rewards_sample - rewards_greedy
+            actor_loss = -(advantage * log_probs_sum).mean()
 
         self.actor_opt.zero_grad()
-        actor_loss.backward()
-        nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
-        self.actor_opt.step()
+        if self.use_amp:
+            self.scaler.scale(actor_loss).backward()
+            self.scaler.unscale_(self.actor_opt)
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+            self.scaler.step(self.actor_opt)
+            self.scaler.update()
+        else:
+            actor_loss.backward()
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+            self.actor_opt.step()
 
         return {
             "actor_loss": actor_loss.item(),
