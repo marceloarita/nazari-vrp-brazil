@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--checkpoint", type=str, required=True)
     parser.add_argument("--n_customers", type=int, default=20)
     parser.add_argument("--n_instances", type=int, default=32)
+    parser.add_argument("--vehicle_capacity", type=int, default=20)
     parser.add_argument("--embed_dim", type=int, default=128)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--time_limit", type=int, default=10, help="OR-Tools time limit per instance (seconds)")
@@ -34,11 +35,11 @@ def main():
     print(f"VRP{args.n_customers} | {args.n_instances} instances | device: {device}\n")
 
     # --- Shared instances ---
-    coords, demands = generate_batch(args.n_instances, args.n_customers, device=device)
+    coords, demands = generate_batch(args.n_instances, args.n_customers, vehicle_capacity=args.vehicle_capacity, device=device)
 
     # --- Nazari agent ---
     nazari_agent = NazariAgent(args.checkpoint, embed_dim=args.embed_dim, device=device)
-    env_nazari = VRPEnvironment(coords, demands)
+    env_nazari = VRPEnvironment(coords, demands, vehicle_capacity=args.vehicle_capacity)
     with torch.no_grad():
         _, rewards_nazari = rollout(nazari_agent, env_nazari, greedy=True)
 

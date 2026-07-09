@@ -133,8 +133,11 @@ class VRPEnvironment:
         # Rule 3: demand exceeds remaining vehicle capacity
         mask[:, 1:] |= self.demands[:, 1:] > self.remaining_cap.unsqueeze(-1)
 
-        # Depot is always reachable (Rule 2 implicit: if all customers masked, only depot remains)
-        mask[:, DEPOT_IDX] = False
+        # Depot is masked when vehicle is already at depot (forces visiting a customer first).
+        # Exception: if all customers are masked (none reachable), depot must stay open to avoid deadlock.
+        at_depot = (self.current_node == DEPOT_IDX)
+        any_customer_open = (~mask[:, 1:]).any(dim=-1)  # True if ≥1 customer is reachable
+        mask[at_depot & any_customer_open, DEPOT_IDX] = True
 
         return mask
 

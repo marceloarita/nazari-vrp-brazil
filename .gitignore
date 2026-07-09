@@ -219,3 +219,10 @@ __marimo__/
 
 # markdown
 project_context.md
+
+# Model checkpoints
+checkpoints/
+*.pt
+
+# Weights & Biases logs
+wandb/
