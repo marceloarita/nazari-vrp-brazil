@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+from .plot import plot_route
 
 DEPOT_IDX = 0
 
@@ -139,59 +140,11 @@ class VRPEnvironment:
 
     def render(self, batch_idx: int = 0, title: str | None = None) -> None:
         """Plot nodes and route for one instance in the batch."""
-        coords = self.static[batch_idx].cpu().numpy()          # (N+1, 2)
-
+        coords = self.static[batch_idx].cpu().numpy()
+        tour = [0] + [t[batch_idx].item() for t in self.tour] if self.tour else []
         fig, ax = plt.subplots(figsize=(7, 7))
         fig.patch.set_facecolor("#f8f9fa")
-        ax.set_facecolor("#f8f9fa")
-
-        # --- Route segments (drawn first so nodes appear on top) ---
-        if self.tour:
-            route_colors = ["#5c85d6", "#4aab8f", "#c96b4a", "#7b62b8", "#c9943a", "#b85c7a"]
-            tour    = [0] + [t[batch_idx].item() for t in self.tour]
-            segment = [0]
-            color_idx = 0
-            for node in tour[1:]:
-                segment.append(node)
-                if node == 0:
-                    ax.plot(coords[segment, 0], coords[segment, 1],
-                            color=route_colors[color_idx % len(route_colors)],
-                            lw=2.0, alpha=0.8, zorder=1)
-                    color_idx += 1
-                    segment = [0]
-
-        # --- Customer nodes: yellow circle + node index inside ---
-        for i in range(1, len(coords)):
-            ax.scatter(coords[i, 0], coords[i, 1],
-                       s=260, color="#ffeaa7", edgecolors="#fdcb6e",
-                       linewidth=1.2, zorder=3)
-            ax.text(coords[i, 0], coords[i, 1], str(i),
-                    ha="center", va="center",
-                    fontsize=9, fontweight="bold", color="#2d3436", zorder=4)
-
-        # --- Depot: red square with "D" ---
-        ax.scatter(coords[0, 0], coords[0, 1],
-                   s=200, marker="s", color="#ff7675",
-                   edgecolors="#d63031", linewidth=1.5, zorder=5)
-        ax.text(coords[0, 0], coords[0, 1], "D",
-                ha="center", va="center",
-                fontsize=9, fontweight="bold", color="white", zorder=6)
-
-        # --- Axes style ---
-        ax.set_xlim(-0.05, 1.05)
-        ax.set_ylim(-0.05, 1.05)
-        ax.set_xticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
-        ax.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
-        ax.tick_params(labelsize=8, color="#b2bec3")
-        ax.set_xlabel("X", fontsize=10, color="#636e72")
-        ax.set_ylabel("Y", fontsize=10, color="#636e72")
-        for spine in ax.spines.values():
-            spine.set_color("#dfe6e9")
-            spine.set_linewidth(1.0)
-
-        if title:
-            ax.set_title(title, fontsize=13, color="#2d3436", pad=12)
-
+        plot_route(coords, tour, ax=ax, title=title)
         plt.tight_layout()
         plt.show()
 

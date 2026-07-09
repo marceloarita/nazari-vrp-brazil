@@ -82,6 +82,7 @@ class Trainer:
     def __init__(
         self,
         n_customers=50,
+        vehicle_capacity=20,
         batch_size=128,
         embed_dim=128,
         lr=1e-4,
@@ -92,6 +93,7 @@ class Trainer:
         kde=None,
     ):
         self.n_customers = n_customers
+        self.vehicle_capacity = vehicle_capacity
         self.batch_size = batch_size
         self.max_grad_norm = max_grad_norm
         self.device = device
@@ -107,11 +109,12 @@ class Trainer:
         coords, demands = generate_batch(
             self.batch_size,
             self.n_customers,
+            vehicle_capacity=self.vehicle_capacity,
             distribution=self.distribution,
             kde=self.kde,
             device=self.device,
         )
-        env = VRPEnvironment(coords, demands)
+        env = VRPEnvironment(coords, demands, vehicle_capacity=self.vehicle_capacity)
 
         # --- Sampling rollout (gradient flows through log_probs_sum) ---
         log_probs_sum, rewards_sample = rollout(self.actor, env, greedy=False)

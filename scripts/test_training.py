@@ -6,6 +6,7 @@ print(f"Device: {device}\n")
 
 trainer = Trainer(
     n_customers=10,
+    vehicle_capacity=20,
     batch_size=4,
     embed_dim=128,
     lr=1e-4,
