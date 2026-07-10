@@ -18,7 +18,7 @@ MAX_GRAD_NORM = 2.0
 N_EPOCHS      = 10_000
 SAVE_EVERY    = 1_000
 
-BASELINES = ["none", "ema", "greedy"]
+BASELINES = ["kool"]
 
 for baseline in BASELINES:
     checkpoint_dir = f"checkpoints/vrp{N_CUSTOMERS}_cap{VEHICLE_CAP}_{baseline}"

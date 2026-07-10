@@ -1,7 +1,9 @@
+import copy
 import os
 
 import torch
 import torch.nn as nn
+from scipy import stats
 from torch.distributions import Categorical
 
 import wandb
@@ -103,6 +105,13 @@ class Trainer:
         self.ema_value = 0.0  # running EMA state (used only when baseline="ema")
 
         self.actor = AttentionVRP(embed_dim=embed_dim).to(device)
+
+        # Kool 2019: frozen copy of actor used as baseline, updated via t-test
+        if baseline == "kool":
+            self.actor_frozen = copy.deepcopy(self.actor)
+            self.actor_frozen.eval()
+            for p in self.actor_frozen.parameters():
+                p.requires_grad_(False)
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
 
         # AMP: enabled only on CUDA
@@ -124,9 +133,10 @@ class Trainer:
         with torch.amp.autocast("cuda", enabled=self.use_amp):
             log_probs_sum, rewards_sample = rollout(self.actor, env, greedy=False)
 
-            if self.baseline == "greedy":
+            if self.baseline in ("greedy", "kool"):
+                baseline_actor = self.actor_frozen if self.baseline == "kool" else self.actor
                 with torch.no_grad():
-                    _, rewards_greedy = rollout(self.actor, env, greedy=True)
+                    _, rewards_greedy = rollout(baseline_actor, env, greedy=True)
                 advantage = rewards_sample - rewards_greedy
                 baseline_value = rewards_greedy.mean().item()
 
@@ -156,13 +166,49 @@ class Trainer:
             self.actor_opt.step()
 
         return {
-            "actor_loss": actor_loss.item(),
-            "reward_mean": rewards_sample.mean().item(),
-            "reward_std": rewards_sample.std().item(),
+            "actor_loss":     actor_loss.item(),
+            "critic_loss":    0.0,  # placeholder — non-zero when critic network is added
+            "reward_mean":    rewards_sample.mean().item(),
+            "reward_std":     rewards_sample.std().item(),
+            "tour_length":    (-rewards_sample).mean().item(),
             "baseline_value": baseline_value,
+            "advantage_mean": advantage.mean().item(),
+            "advantage_std":  advantage.std().item(),
         }
 
-    def train(self, n_epochs, save_every=500, checkpoint_dir="checkpoints"):
+    def _kool_try_update(self, n_eval=1000, significance=0.05):
+        """
+        Kool 2019: compare current actor vs frozen baseline on fresh instances.
+        Replace frozen baseline if current is significantly better (paired t-test).
+        Returns True if baseline was updated.
+        """
+        coords, demands = generate_batch(
+            n_eval, self.n_customers,
+            vehicle_capacity=self.vehicle_capacity,
+            device=self.device,
+        )
+        env_cur  = VRPEnvironment(coords, demands, vehicle_capacity=self.vehicle_capacity)
+        env_base = VRPEnvironment(coords, demands, vehicle_capacity=self.vehicle_capacity)
+
+        with torch.no_grad():
+            _, r_current = rollout(self.actor,        env_cur,  greedy=True)
+            _, r_frozen  = rollout(self.actor_frozen, env_base, greedy=True)
+
+        # Paired one-sided t-test: H1 = current is better (higher reward)
+        t_stat, p_value = stats.ttest_rel(
+            r_current.cpu().numpy(),
+            r_frozen.cpu().numpy(),
+        )
+        updated = bool(t_stat > 0 and p_value / 2 < significance)
+        if updated:
+            self.actor_frozen = copy.deepcopy(self.actor)
+            self.actor_frozen.eval()
+            for p in self.actor_frozen.parameters():
+                p.requires_grad_(False)
+        return updated, p_value / 2
+
+    def train(self, n_epochs, save_every=500, checkpoint_dir="checkpoints",
+              kool_eval_every=100, kool_n_eval=1000, kool_significance=0.05):
         if self.use_wandb:
             wandb.init(
                 project="nazari-vrp-brazil",
@@ -179,15 +225,24 @@ class Trainer:
         for epoch in range(1, n_epochs + 1):
             metrics = self.train_step()
 
+            # Kool: periodically test if frozen baseline should be updated
+            if self.baseline == "kool" and epoch % kool_eval_every == 0:
+                updated, p_val = self._kool_try_update(kool_n_eval, kool_significance)
+                metrics["kool_baseline_updated"] = float(updated)
+                metrics["kool_p_value"] = p_val
+                if updated:
+                    print(f"  [Kool] Epoch {epoch}: baseline updated (p={p_val:.4f})")
+
             if self.use_wandb:
                 wandb.log({"epoch": epoch, **metrics})
 
             if epoch % 100 == 0:
                 print(
                     f"Epoch {epoch:5d} | "
-                    f"reward: {metrics['reward_mean']:.4f} ± {metrics['reward_std']:.4f} | "
+                    f"tour: {metrics['tour_length']:.4f} | "
+                    f"adv: {metrics['advantage_mean']:.4f} ± {metrics['advantage_std']:.4f} | "
                     f"baseline: {metrics['baseline_value']:.4f} | "
-                    f"actor_loss: {metrics['actor_loss']:.4f}"
+                    f"loss: {metrics['actor_loss']:.4f}"
                 )
 
             if epoch % save_every == 0:
