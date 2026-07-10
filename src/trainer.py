@@ -210,8 +210,11 @@ class Trainer:
     def train(self, n_epochs, save_every=500, checkpoint_dir="checkpoints",
               kool_eval_every=100, kool_n_eval=1000, kool_significance=0.05):
         if self.use_wandb:
+            # VRP10 keeps the original project for backwards compatibility with existing runs.
+            # Larger instances get their own project to keep dashboards clean.
+            project = "nazari-vrp-brazil" if self.n_customers == 10 else f"nazari-vrp{self.n_customers}"
             wandb.init(
-                project="nazari-vrp-brazil",
+                project=project,
                 name=f"vrp{self.n_customers}_{self.baseline}",
                 config={
                     "n_customers": self.n_customers,
