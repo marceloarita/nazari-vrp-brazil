@@ -232,3 +232,6 @@ eval_sets/
 
 # Eval log (local, changes on every run)
 eval_log.csv
+
+# Generated plots
+plots/
