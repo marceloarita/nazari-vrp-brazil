@@ -69,9 +69,9 @@ def plot_route(coords, tour, ax=None, title=None):
     ax.set_ylim(-0.05, 1.05)
     ax.set_xticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
     ax.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
-    ax.tick_params(labelsize=8, color="#b2bec3")
-    ax.set_xlabel("X", fontsize=10, color="#636e72")
-    ax.set_ylabel("Y", fontsize=10, color="#636e72")
+    ax.tick_params(labelsize=11, color="#b2bec3")
+    ax.set_xlabel("X", fontsize=13, color="#636e72")
+    ax.set_ylabel("Y", fontsize=13, color="#636e72")
     for spine in ax.spines.values():
         spine.set_color("black")
         spine.set_linewidth(1.0)

@@ -68,7 +68,7 @@ def main():
                 "tour": nazari_tour,
                 "title": (
                     f"Nazari ({label})\n"
-                    f"dist: {dist_nazari[i]:.4f}  |  time: {t_nazari_per*1000:.1f}ms/inst"
+                    f"dist: {dist_nazari[i]:.3f}  |  time: {t_nazari_per*1000:.1f}ms/inst"
                 ),
             },
             {
@@ -76,7 +76,7 @@ def main():
                 "tour": ortools_tours[i],
                 "title": (
                     f"OR-Tools\n"
-                    f"dist: {dist_ortools[i]:.4f}  |  time: {t_ortools_per:.1f}s/inst"
+                    f"dist: {dist_ortools[i]:.3f}  |  time: {t_ortools_per:.1f}s/inst"
                 ),
             },
         ])
