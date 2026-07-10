@@ -40,7 +40,11 @@ def _solve_instance(coords_np, demands_np, vehicle_capacity, time_limit_s=10):
     demands_int = [int(d * demand_scale) for d in demands_np]
     capacity_int = int(vehicle_capacity * demand_scale)
 
-    manager = pywrapcp.RoutingIndexManager(n_nodes, n_nodes, 0)  # up to n_nodes vehicles
+    # Upper bound on vehicles: ceil(total_demand / capacity) + 1 buffer.
+    # Using n_nodes vehicles inflates the search space and causes GLS to run the full time limit.
+    total_demand = sum(demands_np[1:])  # exclude depot
+    n_vehicles = max(2, int(np.ceil(total_demand / vehicle_capacity)) + 1)
+    manager = pywrapcp.RoutingIndexManager(n_nodes, n_vehicles, 0)
     routing = pywrapcp.RoutingModel(manager)
 
     # Distance callback
@@ -56,7 +60,7 @@ def _solve_instance(coords_np, demands_np, vehicle_capacity, time_limit_s=10):
 
     demand_idx = routing.RegisterUnaryTransitCallback(demand_callback)
     routing.AddDimensionWithVehicleCapacity(
-        demand_idx, 0, [capacity_int] * n_nodes, True, "Capacity"
+        demand_idx, 0, [capacity_int] * n_vehicles, True, "Capacity"
     )
 
     # Search parameters
@@ -73,7 +77,7 @@ def _solve_instance(coords_np, demands_np, vehicle_capacity, time_limit_s=10):
     # Extract tour as flat sequence (depot visits included)
     tour = []
     total_dist = 0.0
-    for v in range(n_nodes):
+    for v in range(n_vehicles):
         idx = routing.Start(v)
         if routing.IsEnd(solution.Value(routing.NextVar(idx))):
             continue  # unused vehicle

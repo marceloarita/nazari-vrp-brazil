@@ -226,3 +226,9 @@ checkpoints/
 
 # Weights & Biases logs
 wandb/
+
+# Pre-built eval sets (large binary files)
+eval_sets/
+
+# Eval log (local, changes on every run)
+eval_log.csv
