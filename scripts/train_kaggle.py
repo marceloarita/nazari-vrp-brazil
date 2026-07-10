@@ -15,7 +15,7 @@ BATCH_SIZE    = 512
 EMBED_DIM     = 128
 LR            = 1e-4
 MAX_GRAD_NORM = 2.0
-N_EPOCHS      = 20_000
+N_EPOCHS      = 10_000
 SAVE_EVERY    = 1_000
 
 BASELINES = ["none", "ema", "greedy"]
