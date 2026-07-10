@@ -10,6 +10,7 @@ Usage:
 
 import argparse
 import os
+import time
 
 import matplotlib.pyplot as plt
 import torch
@@ -40,12 +41,17 @@ def main():
     ortools_tours = data["ortools_tours"]
     n_customers = data["n_customers"]
     vehicle_capacity = data["vehicle_capacity"]
+    n_instances = data["n_instances"]
+    t_ortools_total = data.get("t_ortools_s", 0.0)
+    t_ortools_per = t_ortools_total / n_instances  # avg per instance
 
-    # Run Nazari
+    # Run Nazari (timed)
     agent = NazariAgent(args.checkpoint, embed_dim=args.embed_dim, device=args.device)
     env = VRPEnvironment(coords, demands, vehicle_capacity=vehicle_capacity)
+    t0 = time.time()
     with torch.no_grad():
         _, rewards = rollout(agent, env, greedy=True)
+    t_nazari_per = (time.time() - t0) / n_instances  # avg per instance
     dist_nazari = -rewards
 
     n_plots = min(args.n_plots, coords.size(0))
@@ -60,12 +66,18 @@ def main():
             {
                 "coords": coords_np,
                 "tour": nazari_tour,
-                "title": f"Nazari ({label})\ndist: {dist_nazari[i]:.4f}",
+                "title": (
+                    f"Nazari ({label})\n"
+                    f"dist: {dist_nazari[i]:.4f}  |  time: {t_nazari_per*1000:.1f}ms/inst"
+                ),
             },
             {
                 "coords": coords_np,
                 "tour": ortools_tours[i],
-                "title": f"OR-Tools\ndist: {dist_ortools[i]:.4f}",
+                "title": (
+                    f"OR-Tools\n"
+                    f"dist: {dist_ortools[i]:.4f}  |  time: {t_ortools_per:.1f}s/inst"
+                ),
             },
         ])
 
