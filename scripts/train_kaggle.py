@@ -8,7 +8,7 @@ print(f"Device: {device}\n")
 
 # --- Select VRP size ---
 # Change this to 20 or 50
-VRP_SIZE = 20
+VRP_SIZE = 50
 
 # --- Config per VRP size (Nazari 2018 capacities) ---
 CONFIGS = {
@@ -19,30 +19,43 @@ CONFIGS = {
 cfg = CONFIGS[VRP_SIZE]
 
 # --- Shared hyperparams ---
-EMBED_DIM     = 128
 LR            = 1e-4
 MAX_GRAD_NORM = 2.0
+BASELINE      = "kool"
 
-# Run one baseline per Kaggle session to avoid timeout (each ~4-8h for VRP20, longer for VRP50)
-BASELINES = ["kool", "greedy"]
+# VRP20: compare kool vs greedy; VRP50: compare embed_dim variants
+RUNS = {
+    20: [
+        dict(embed_dim=128, run_name="vrp20_kool"),
+        dict(embed_dim=128, run_name="vrp20_greedy", baseline="greedy"),
+    ],
+    50: [
+        dict(embed_dim=128, run_name="vrp50_kool_emb128"),
+        dict(embed_dim=64,  run_name="vrp50_kool_emb64"),
+    ],
+}
 
-for baseline in BASELINES:
-    checkpoint_dir = f"checkpoints/vrp{VRP_SIZE}_cap{cfg['vehicle_capacity']}_{baseline}"
+for run in RUNS[VRP_SIZE]:
+    baseline  = run.get("baseline", BASELINE)
+    embed_dim = run["embed_dim"]
+    run_name  = run["run_name"]
+    checkpoint_dir = f"checkpoints/{run_name}"
 
     print(f"{'='*50}")
-    print(f"VRP{VRP_SIZE} | capacity={cfg['vehicle_capacity']} | batch={cfg['batch_size']} | baseline={baseline} | epochs={cfg['n_epochs']}")
+    print(f"VRP{VRP_SIZE} | cap={cfg['vehicle_capacity']} | batch={cfg['batch_size']} | baseline={baseline} | embed={embed_dim} | epochs={cfg['n_epochs']}")
 
     trainer = Trainer(
         n_customers=VRP_SIZE,
         vehicle_capacity=cfg["vehicle_capacity"],
         batch_size=cfg["batch_size"],
-        embed_dim=EMBED_DIM,
+        embed_dim=embed_dim,
         lr=LR,
         max_grad_norm=MAX_GRAD_NORM,
         device=device,
         use_wandb=True,
         distribution="uniform",
         baseline=baseline,
+        run_name=run_name,
     )
 
     print(f"Actor params: {sum(p.numel() for p in trainer.actor.parameters()):,}\n")

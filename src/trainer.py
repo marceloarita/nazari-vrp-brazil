@@ -91,6 +91,7 @@ class Trainer:
         kde=None,
         baseline="greedy",
         ema_alpha=0.99,
+        run_name=None,
     ):
         self.n_customers = n_customers
         self.vehicle_capacity = vehicle_capacity
@@ -103,6 +104,7 @@ class Trainer:
         self.baseline = baseline
         self.ema_alpha = ema_alpha
         self.ema_value = 0.0  # running EMA state (used only when baseline="ema")
+        self.run_name = run_name
 
         self.actor = AttentionVRP(embed_dim=embed_dim).to(device)
 
@@ -215,7 +217,7 @@ class Trainer:
             project = "nazari-vrp-brazil" if self.n_customers == 10 else f"nazari-vrp{self.n_customers}"
             wandb.init(
                 project=project,
-                name=f"vrp{self.n_customers}_{self.baseline}",
+                name=self.run_name or f"vrp{self.n_customers}_{self.baseline}",
                 config={
                     "n_customers": self.n_customers,
                     "batch_size": self.batch_size,
