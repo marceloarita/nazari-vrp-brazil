@@ -235,3 +235,6 @@ eval_log.csv
 
 # Generated plots
 plots/
+
+# Raw datasets (large files, not versioned)
+data/
