@@ -48,6 +48,8 @@ print(f"KDE base : {kde_base}")
 print(f"KDE bw2x : {kde_bw2x}\n")
 
 # --- Runs ---
+WANDB_PROJECT = "nazari-vrp20-kde"
+
 RUNS = [
     dict(run_name="vrp20_kde_emb128", embed_dim=128, kde=kde_base),
     dict(run_name="vrp20_kde_emb256", embed_dim=256, kde=kde_base),
@@ -78,6 +80,7 @@ for run in RUNS:
         kde=kde,
         baseline="kool",
         run_name=run_name,
+        wandb_project=WANDB_PROJECT,
     )
 
     print(f"Actor params: {sum(p.numel() for p in trainer.actor.parameters()):,}\n")

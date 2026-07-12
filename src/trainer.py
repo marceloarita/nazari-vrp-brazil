@@ -92,6 +92,7 @@ class Trainer:
         baseline="greedy",
         ema_alpha=0.99,
         run_name=None,
+        wandb_project=None,
     ):
         self.n_customers = n_customers
         self.vehicle_capacity = vehicle_capacity
@@ -105,6 +106,7 @@ class Trainer:
         self.ema_alpha = ema_alpha
         self.ema_value = 0.0  # running EMA state (used only when baseline="ema")
         self.run_name = run_name
+        self.wandb_project = wandb_project
 
         self.actor = AttentionVRP(embed_dim=embed_dim).to(device)
 
@@ -214,7 +216,9 @@ class Trainer:
         if self.use_wandb:
             # VRP10 keeps the original project for backwards compatibility with existing runs.
             # Larger instances get their own project to keep dashboards clean.
-            project = "nazari-vrp-brazil" if self.n_customers == 10 else f"nazari-vrp{self.n_customers}"
+            project = self.wandb_project or (
+                "nazari-vrp-brazil" if self.n_customers == 10 else f"nazari-vrp{self.n_customers}"
+            )
             wandb.init(
                 project=project,
                 name=self.run_name or f"vrp{self.n_customers}_{self.baseline}",
