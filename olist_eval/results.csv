@@ -1,0 +1,6 @@
+timestamp,checkpoint,cluster,n_instances,model_mean,model_std,ortools_mean,ortools_std,gap_mean,gap_std,t_model_s,t_ortools_s,time_limit_s
+2026-07-12 14:57:51,checkpoints/vrp20_cap30_kool/epoch_20000.pt,1,32,5.6483,1.1998,3.6439,0.2976,55.02,29.49,0.09,320.06,10
+2026-07-12 15:03:13,checkpoints/vrp20_cap30_kool/epoch_20000.pt,2,32,5.5347,0.8421,3.9959,0.4436,40.01,27.81,1.55,320.07,10
+2026-07-12 15:08:33,checkpoints/vrp20_cap30_kool/epoch_20000.pt,3,32,5.9699,1.1771,3.3948,0.4611,79.39,43.35,0.25,320.07,10
+2026-07-12 15:13:54,checkpoints/vrp20_cap30_kool/epoch_20000.pt,4,32,5.2944,1.1253,3.3067,0.3507,61.40,35.36,0.24,320.08,10
+2026-07-12 15:19:14,checkpoints/vrp20_cap30_kool/epoch_20000.pt,5,32,6.0428,0.6898,3.5717,0.3549,70.74,25.79,0.29,320.07,10
