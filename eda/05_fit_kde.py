@@ -92,21 +92,28 @@ best_bw = grid.best_params_["bandwidth"]
 print(f"Best bandwidth      : {best_bw:.4f}")
 
 # ------------------------------------------------------------------
-# 4. Fit final KDE and wrap
+# 4. Fit KDEs: base (best_bw) and bw2x (2 * best_bw)
 # ------------------------------------------------------------------
-kde_sk = KernelDensity(kernel="gaussian", bandwidth=best_bw)
-kde_sk.fit(coords_norm)
+variants = {
+    "sp_kde":      best_bw,
+    "sp_kde_bw2x": best_bw * 2,
+}
 
-sp_kde = SPKDE(kde=kde_sk, bandwidth=best_bw, n_train=len(coords_norm))
-print(f"Fitted              : {sp_kde}")
+kdes = {}
+for name, bw in variants.items():
+    kde_sk = KernelDensity(kernel="gaussian", bandwidth=bw)
+    kde_sk.fit(coords_norm)
+    kdes[name] = SPKDE(kde=kde_sk, bandwidth=bw, n_train=len(coords_norm))
+    print(f"Fitted {name:<16}: {kdes[name]}")
 
 # ------------------------------------------------------------------
 # 5. Save
 # ------------------------------------------------------------------
-out_pkl = MODELS_DIR / "sp_kde.pkl"
-with open(out_pkl, "wb") as f:
-    pickle.dump(sp_kde, f)
-print(f"Saved               : {out_pkl}")
+for name, sp_kde in kdes.items():
+    out_pkl = MODELS_DIR / f"{name}.pkl"
+    with open(out_pkl, "wb") as f:
+        pickle.dump(sp_kde, f)
+    print(f"Saved               : {out_pkl}")
 
 # ------------------------------------------------------------------
 # 6. Verification plot: real data vs KDE samples
@@ -137,5 +144,7 @@ plt.close(fig)
 print(f"Plot saved          : {out_plot}")
 
 # Print % of samples inside [0,1]²
-inside = ((kde_samples >= 0) & (kde_samples <= 1)).all(axis=1).mean()
-print(f"\nSamples inside [0,1]^2 : {100*inside:.1f}%")
+for name, sp_kde in kdes.items():
+    samples = sp_kde.sample(N_SAMPLES)
+    inside  = ((samples >= 0) & (samples <= 1)).all(axis=1).mean()
+    print(f"Samples inside [0,1]^2 ({name}): {100*inside:.1f}%")
