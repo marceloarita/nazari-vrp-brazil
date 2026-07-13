@@ -82,11 +82,11 @@ Three instances per problem size, selected as those closest to the median gap.
 
 <img src="docs/images/vrp10_routes.png" width="100%">
 
-*VRP10 — Nazari (left) vs OR-Tools (right). Each color is one vehicle route. Depot shown as orange square.*
+*VRP10 — Nazari (left) vs OR-Tools (right). A single vehicle makes multiple trips from the depot; each color is one trip before returning to reload. Depot shown as orange square.*
 
 <img src="docs/images/vrp20_routes.png" width="100%">
 
-*VRP20 — Nazari (left) vs OR-Tools (right). With 20 customers the structural differences become visible. A recurring pattern in Nazari's solutions is route crossing — two vehicle routes forming an X — which is a clear sign of suboptimality. OR-Tools consistently avoids crossings by routing along perimeters; Nazari has no such guarantee because it selects customers one at a time without lookahead into how future routes will interact.*
+*VRP20 — Nazari (left) vs OR-Tools (right). A single vehicle makes multiple trips from the depot (each color is one trip before returning to reload). With 20 customers the structural differences become visible. A recurring pattern in Nazari's solutions is trip crossing — two trips of the same vehicle forming an X — which is a clear sign of suboptimality. OR-Tools consistently avoids crossings by routing along perimeters; Nazari has no such guarantee because it selects customers one at a time without lookahead into how future trips will interact.*
 
 ---
 
