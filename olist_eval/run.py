@@ -40,15 +40,31 @@ def load_instance(path: Path, device: str):
     return coords, demands, data
 
 
-def eval_cluster(coords, demands, vehicle_capacity, agent, time_limit, device):
-    """Run model + OR-Tools on a batch of instances. Returns (dist_model, dist_ortools)."""
+def eval_cluster(coords, demands, vehicle_capacity, agent, time_limit, device,
+                 cached_ortools=None, instance_path=None):
+    """Run model + OR-Tools on a batch of instances. Returns (dist_model, dist_ortools).
 
-    # OR-Tools
-    t0 = time.time()
-    _, dist_ortools = solve_batch(coords, demands,
-                                  vehicle_capacity=vehicle_capacity,
-                                  time_limit_s=time_limit)
-    t_ort = time.time() - t0
+    If cached_ortools is provided, OR-Tools is skipped and cached results are used.
+    If instance_path is provided, newly computed OR-Tools results are saved back to the .pt file.
+    """
+
+    # OR-Tools (skip if cached)
+    if cached_ortools is not None:
+        dist_ortools = cached_ortools.to(device)
+        t_ort = 0.0
+        print("    (OR-Tools: using cached results)")
+    else:
+        t0 = time.time()
+        _, dist_ortools = solve_batch(coords, demands,
+                                      vehicle_capacity=vehicle_capacity,
+                                      time_limit_s=time_limit)
+        t_ort = time.time() - t0
+        # Cache results back into the .pt file for future runs
+        if instance_path is not None:
+            data = torch.load(instance_path, map_location="cpu", weights_only=False)
+            data["dist_ortools"] = dist_ortools.cpu()
+            data["t_ortools_s"]  = t_ort
+            torch.save(data, instance_path)
 
     # Model (greedy)
     env = VRPEnvironment(coords, demands, vehicle_capacity=vehicle_capacity)
@@ -107,8 +123,10 @@ def main():
         vehicle_capacity = float(meta.get("vehicle_capacity", 1.0))
         n_instances      = coords.shape[0]
 
+        cached = meta.get("dist_ortools")
         dist_model, dist_ortools, t_mdl, t_ort = eval_cluster(
-            coords, demands, vehicle_capacity, agent, args.time_limit, device
+            coords, demands, vehicle_capacity, agent, args.time_limit, device,
+            cached_ortools=cached, instance_path=path,
         )
 
         gap = gap_percent(dist_model, dist_ortools)
