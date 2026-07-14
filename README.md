@@ -136,10 +136,8 @@ eda/01_volume_analysis.py           → SP order volume, daily scope
 eda/02_geographic_distribution.py   → K-means zones, weekly volume per cluster
 eda/03_demand_analysis.py           → Weight distribution, demand mapping [1–9]
 eda/04_build_instances.py           → VRP20 instance generation from real SP data
-eda/05_fit_kde.py                   → KDE fitting, bandwidth selection via CV
 
 scripts/train_kaggle.py             → VRP10/20 training — all baseline variants (Kaggle T4)
-scripts/train_kaggle_kde.py         → VRP20 KDE training — 3 variants
 
 scripts/eval_sp.py                  → Zero-shot + OR-Tools eval on SP instances
 scripts/eval.py                     → Eval against OR-Tools on synthetic instances

@@ -6,19 +6,37 @@ from .plot import plot_route
 DEPOT_IDX = 0
 
 
-def generate_instance(n_customers, vehicle_capacity=1.0, distribution="uniform", kde=None):
+def generate_instance(n_customers, vehicle_capacity=1.0, distribution="uniform", pool=None, depot=None):
     """
+    Args:
+        distribution:
+            "uniform" — customers ~ Uniform[0,1]² (Part I baseline)
+            "pool"    — customers sampled (without replacement) from `pool`, an (M,2)
+                        array of real coordinates for a zone (Part II). Use with a
+                        fixed `depot`.
+        pool:  (M, 2) array of real coordinates; required for distribution="pool".
+        depot: optional (2,) coordinate for the depot (index 0). If None, the depot
+               is drawn from Uniform[0,1]² (matches the original Nazari setup).
+               Pass a fixed value to match a per-zone eval where the depot is the
+               zone centroid.
     Returns:
         coords:  (n_customers+1, 2) float32, values in [0,1]; index 0 = depot
         demands: (n_customers+1,) float32, normalized by vehicle_capacity; depot = 0.0
     """
     if distribution == "uniform":
         coords = np.random.uniform(0, 1, (n_customers + 1, 2)).astype(np.float32)
-    elif distribution == "kde":
-        if kde is None:
-            raise ValueError("KDE object required for 'kde' distribution")
-        customer_xy = kde.sample(n_customers).astype(np.float32)
-        depot_xy = np.random.uniform(0, 1, (1, 2)).astype(np.float32)
+        if depot is not None:
+            coords[0] = np.asarray(depot, dtype=np.float32).reshape(2)
+    elif distribution == "pool":
+        if pool is None:
+            raise ValueError("pool array required for 'pool' distribution")
+        pool = np.asarray(pool, dtype=np.float32)
+        idx = np.random.choice(len(pool), size=n_customers, replace=False)
+        customer_xy = pool[idx]
+        if depot is not None:
+            depot_xy = np.asarray(depot, dtype=np.float32).reshape(1, 2)
+        else:
+            depot_xy = np.random.uniform(0, 1, (1, 2)).astype(np.float32)
         coords = np.vstack([depot_xy, customer_xy])
     else:
         raise ValueError(f"Unknown distribution: {distribution!r}")
@@ -28,18 +46,21 @@ def generate_instance(n_customers, vehicle_capacity=1.0, distribution="uniform",
     return coords, demands
 
 
-def generate_batch(batch_size, n_customers, vehicle_capacity=1.0, distribution="uniform", kde=None, device="cpu"):
+def generate_batch(batch_size, n_customers, vehicle_capacity=1.0, distribution="uniform", pool=None, depot=None, device="cpu"):
     """
     Returns tensors ready for the model:
         coords:  (B, n_customers+1, 2)
         demands: (B, n_customers+1)
 
     For uniform distribution, tensors are generated directly on `device` (avoids CPU→GPU transfer).
-    KDE distribution falls back to numpy (CPU only).
+    Pool distribution falls back to numpy (CPU only).
+
+    depot: optional (2,) coordinate fixed for every instance in the batch (index 0).
+           If None, depots are random Uniform[0,1]².
     """
-    if distribution == "kde":
+    if distribution == "pool":
         instances = [
-            generate_instance(n_customers, vehicle_capacity, distribution, kde)
+            generate_instance(n_customers, vehicle_capacity, "pool", pool=pool, depot=depot)
             for _ in range(batch_size)
         ]
         coords = torch.tensor(np.stack([c for c, _ in instances]), device=device)
@@ -49,6 +70,8 @@ def generate_batch(batch_size, n_customers, vehicle_capacity=1.0, distribution="
     # Uniform: generate directly on target device
     N = n_customers + 1
     coords = torch.rand(batch_size, N, 2, device=device)
+    if depot is not None:
+        coords[:, 0, :] = torch.as_tensor(depot, dtype=coords.dtype, device=device).reshape(2)
     raw_demands = torch.randint(1, 10, (batch_size, n_customers), device=device).float()
     depot_demand = torch.zeros(batch_size, 1, device=device)
     demands = torch.cat([depot_demand, raw_demands / vehicle_capacity], dim=1)

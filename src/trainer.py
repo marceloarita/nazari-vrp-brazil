@@ -88,7 +88,8 @@ class Trainer:
         device="cpu",
         use_wandb=True,
         distribution="uniform",
-        kde=None,
+        pool=None,
+        depot=None,
         baseline="greedy",
         ema_alpha=0.99,
         run_name=None,
@@ -100,7 +101,8 @@ class Trainer:
         self.max_grad_norm = max_grad_norm
         self.device = device
         self.distribution = distribution
-        self.kde = kde
+        self.pool = pool
+        self.depot = depot
         self.use_wandb = use_wandb
         self.baseline = baseline
         self.ema_alpha = ema_alpha
@@ -129,7 +131,8 @@ class Trainer:
             self.n_customers,
             vehicle_capacity=self.vehicle_capacity,
             distribution=self.distribution,
-            kde=self.kde,
+            pool=self.pool,
+            depot=self.depot,
             device=self.device,
         )
         env = VRPEnvironment(coords, demands, vehicle_capacity=self.vehicle_capacity)
@@ -189,6 +192,9 @@ class Trainer:
         coords, demands = generate_batch(
             n_eval, self.n_customers,
             vehicle_capacity=self.vehicle_capacity,
+            distribution=self.distribution,
+            pool=self.pool,
+            depot=self.depot,
             device=self.device,
         )
         env_cur  = VRPEnvironment(coords, demands, vehicle_capacity=self.vehicle_capacity)

@@ -82,6 +82,8 @@ def main():
     parser.add_argument("--checkpoint",    type=str,   required=True)
     parser.add_argument("--instance_dir",  type=str,   default="artifacts/instances")
     parser.add_argument("--clusters",      type=int,   nargs="+", default=[1, 2, 3, 4, 5])
+    parser.add_argument("--split",         type=str,   default="full", choices=["full", "heldout"],
+                        help="'full' = eda/04 eval sets (Part I); 'heldout' = eda/05 leakage-free eval (Part II)")
     parser.add_argument("--time_limit",    type=int,   default=10,
                         help="OR-Tools seconds per instance")
     parser.add_argument("--embed_dim",     type=int,   default=128)
@@ -111,9 +113,10 @@ def main():
     print(header)
     print("-" * len(header))
 
+    tag = "heldout_n" if args.split == "heldout" else "n"
     for cid in args.clusters:
-        # Find instance file — pattern: olist_sp_c{cid}_vrp20_n*_seed*.pt
-        matches = sorted(instance_dir.glob(f"olist_sp_c{cid}_vrp20_n*_seed*.pt"))
+        # Find instance file (full = eda/04, heldout = eda/05)
+        matches = sorted(instance_dir.glob(f"olist_sp_c{cid}_vrp20_{tag}*_seed*.pt"))
         if not matches:
             print(f"  C{cid}: no instance file found in {instance_dir}/ — skipping")
             continue

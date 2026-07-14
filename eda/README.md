@@ -20,7 +20,7 @@ script informs the design of the next.
 4. Group by CEP prefix (5 digits) → identify top zones by order volume
 5. Decide: which VRP size fits the daily volume? (VRP10 / VRP20 / VRP50)
 
-**Output:** `plots/01_orders_by_cep.png`
+**Output:** `artifacts/figures/eda/01_orders_by_cep.png`
 
 ---
 
