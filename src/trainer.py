@@ -211,7 +211,7 @@ class Trainer:
                 p.requires_grad_(False)
         return updated, p_value / 2
 
-    def train(self, n_epochs, save_every=500, checkpoint_dir="checkpoints",
+    def train(self, n_epochs, save_every=500, checkpoint_dir="artifacts/checkpoints",
               kool_eval_every=100, kool_n_eval=1000, kool_significance=0.05):
         if self.use_wandb:
             # VRP10 keeps the original project for backwards compatibility with existing runs.

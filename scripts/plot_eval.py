@@ -2,10 +2,10 @@
 Generate comparison plots: Nazari (greedy) vs OR-Tools for N instances.
 
 Usage:
-    uv run scripts/plot_eval.py --checkpoint checkpoints/vrp10_cap20_ema/epoch_10000.pt \
-                                --eval_set eval_sets/vrp10_cap20_n32.pt \
+    uv run scripts/plot_eval.py --checkpoint artifacts/checkpoints/vrp10_cap20_ema/epoch_10000.pt \
+                                --eval_set artifacts/instances/vrp10_cap20_n32.pt \
                                 --n_plots 10 \
-                                --out_dir plots/vrp10_ema_vs_ortools
+                                --out_dir artifacts/figures/vrp10_ema_vs_ortools
 """
 
 import argparse
@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--n_plots", type=int, default=10)
     parser.add_argument("--embed_dim", type=int, default=128)
     parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--out_dir", type=str, default="plots")
+    parser.add_argument("--out_dir", type=str, default="artifacts/figures")
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)

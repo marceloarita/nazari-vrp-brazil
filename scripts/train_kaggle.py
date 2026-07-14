@@ -39,7 +39,7 @@ for run in RUNS[VRP_SIZE]:
     baseline  = run.get("baseline", BASELINE)
     embed_dim = run["embed_dim"]
     run_name  = run["run_name"]
-    checkpoint_dir = f"checkpoints/{run_name}"
+    checkpoint_dir = f"artifacts/checkpoints/{run_name}"
 
     print(f"{'='*50}")
     print(f"VRP{VRP_SIZE} | cap={cfg['vehicle_capacity']} | batch={cfg['batch_size']} | baseline={baseline} | embed={embed_dim} | epochs={cfg['n_epochs']}")

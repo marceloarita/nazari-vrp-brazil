@@ -220,21 +220,15 @@ __marimo__/
 # markdown
 project_context.md
 
-# Model checkpoints
-checkpoints/
+# Generated artifacts — checkpoints, instances, results, figures (not versioned)
+artifacts/
 *.pt
 
 # Weights & Biases logs
 wandb/
 
-# Pre-built eval sets (large binary files)
-eval_sets/
-
-# Eval log (local, changes on every run)
-eval_log.csv
-
-# Generated plots
-plots/
-
 # Raw datasets (large files, not versioned)
 data/
+
+# Living draft docs (not versioned)
+experiments/part2_sp/notes.md

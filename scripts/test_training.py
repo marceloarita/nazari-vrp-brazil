@@ -16,6 +16,6 @@ trainer = Trainer(
 
 print(f"Actor params: {sum(p.numel() for p in trainer.actor.parameters()):,}\n")
 
-trainer.train(n_epochs=3, save_every=999, checkpoint_dir="checkpoints_test")
+trainer.train(n_epochs=3, save_every=999, checkpoint_dir="artifacts/checkpoints_test")
 
 print("\nSmoke test passed.")

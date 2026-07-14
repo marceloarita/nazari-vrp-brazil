@@ -60,7 +60,7 @@ for run in RUNS:
     run_name       = run["run_name"]
     embed_dim      = run["embed_dim"]
     kde            = run["kde"]
-    checkpoint_dir = f"checkpoints/{run_name}"
+    checkpoint_dir = f"artifacts/checkpoints/{run_name}"
 
     print("=" * 55)
     print(f"Run        : {run_name}")

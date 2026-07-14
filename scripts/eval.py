@@ -3,12 +3,12 @@ Evaluation script — compares NazariAgent vs OR-Tools on the same instances.
 
 Usage (with pre-built eval set — recommended):
     uv run scripts/create_eval_set.py --n_customers 10 --vehicle_capacity 20
-    uv run scripts/eval.py --checkpoint checkpoints/vrp10_cap20_ema/epoch_10000.pt --eval_set eval_sets/vrp10_cap20_n32.pt
+    uv run scripts/eval.py --checkpoint artifacts/checkpoints/vrp10_cap20_ema/epoch_10000.pt --eval_set artifacts/instances/vrp10_cap20_n32.pt
 
 Usage (ad-hoc, generates instances + runs OR-Tools on the fly):
-    uv run scripts/eval.py --checkpoint checkpoints/epoch_01000.pt --n_customers 10
+    uv run scripts/eval.py --checkpoint artifacts/checkpoints/epoch_01000.pt --n_customers 10
 
-Logs are appended to eval_log.csv.
+Logs are appended to artifacts/results/eval_log.csv.
 """
 
 import argparse
@@ -40,7 +40,7 @@ def main():
     # Other
     parser.add_argument("--embed_dim", type=int, default=128)
     parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--log", type=str, default="eval_log.csv")
+    parser.add_argument("--log", type=str, default="artifacts/results/eval_log.csv")
     parser.add_argument("--plot", action="store_true")
     parser.add_argument("--plot_idx", type=int, default=0)
     args = parser.parse_args()
@@ -92,6 +92,7 @@ def main():
     print(f"\nGap% (Nazari vs OR-Tools): {gap.mean():.2f}%  (lower is better)")
 
     # --- Log ---
+    os.makedirs(os.path.dirname(args.log) or ".", exist_ok=True)
     log_exists = os.path.exists(args.log)
     with open(args.log, "a", newline="") as f:
         writer = csv.writer(f)

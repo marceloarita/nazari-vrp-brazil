@@ -33,8 +33,8 @@ MAX_ORDER_WEIGHT_KG = 20.0  # motoboy hard limit
 COORD_PADDING      = 0.05   # 5% padding around bounding box per cluster
 
 DATA_DIR  = Path("data/olist")
-OUT_DIR   = Path("eval_sets")
-OUT_DIR.mkdir(exist_ok=True)
+OUT_DIR   = Path("artifacts/instances")
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 rng = np.random.default_rng(SEED)
 

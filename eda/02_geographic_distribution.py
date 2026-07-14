@@ -16,8 +16,8 @@ from pathlib import Path
 from sklearn.cluster import KMeans
 
 DATA_DIR  = Path("data/olist")
-PLOTS_DIR = Path("eda/plots")
-PLOTS_DIR.mkdir(exist_ok=True)
+PLOTS_DIR = Path("artifacts/figures/eda")
+PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------------------
 # 1. Load SP customers + geolocation + orders (for date range)

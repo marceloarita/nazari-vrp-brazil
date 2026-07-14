@@ -7,7 +7,7 @@ Usage:
     uv run scripts/create_eval_set.py --n_customers 20 --vehicle_capacity 30 --n_instances 32
 
 Output:
-    eval_sets/vrp{n}_cap{cap}_n{instances}.pt
+    artifacts/instances/vrp{n}_cap{cap}_n{instances}.pt
 """
 
 import argparse
@@ -28,9 +28,9 @@ def main():
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
-    os.makedirs("eval_sets", exist_ok=True)
+    os.makedirs("artifacts/instances", exist_ok=True)
 
-    out_path = f"eval_sets/vrp{args.n_customers}_cap{args.vehicle_capacity}_n{args.n_instances}.pt"
+    out_path = f"artifacts/instances/vrp{args.n_customers}_cap{args.vehicle_capacity}_n{args.n_instances}.pt"
 
     print(f"Generating {args.n_instances} instances - VRP{args.n_customers}, cap={args.vehicle_capacity}, seed={args.seed}")
     coords, demands = generate_batch(args.n_instances, args.n_customers, vehicle_capacity=args.vehicle_capacity)

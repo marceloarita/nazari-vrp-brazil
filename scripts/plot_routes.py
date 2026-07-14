@@ -27,15 +27,15 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CONFIGS = [
     dict(
-        eval_set    = "eval_sets/vrp10_cap20_n32.pt",
-        checkpoint  = "checkpoints/vrp10_cap20_kool/epoch_10000.pt",
+        eval_set    = "artifacts/instances/vrp10_cap20_n32.pt",
+        checkpoint  = "artifacts/checkpoints/vrp10_cap20_kool/epoch_10000.pt",
         embed_dim   = 128,
         label       = "VRP10",
         out         = OUT_DIR / "vrp10_routes.png",
     ),
     dict(
-        eval_set    = "eval_sets/vrp20_cap30_n32.pt",
-        checkpoint  = "checkpoints/vrp20_cap30_kool/epoch_20000.pt",
+        eval_set    = "artifacts/instances/vrp20_cap30_n32.pt",
+        checkpoint  = "artifacts/checkpoints/vrp20_cap30_kool/epoch_20000.pt",
         embed_dim   = 128,
         label       = "VRP20",
         out         = OUT_DIR / "vrp20_routes.png",

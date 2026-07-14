@@ -15,8 +15,8 @@ import numpy as np
 from pathlib import Path
 
 DATA_DIR  = Path("data/olist")
-PLOTS_DIR = Path("eda/plots")
-PLOTS_DIR.mkdir(exist_ok=True)
+PLOTS_DIR = Path("artifacts/figures/eda")
+PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_ORDER_WEIGHT_KG = 20.0  # motoboy hard limit — orders above this are excluded
 

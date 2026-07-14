@@ -5,17 +5,17 @@ Runs the trained VRP20 model (no retraining) on real customer locations and
 compares against OR-Tools GLS. Reports gap% per cluster and overall.
 
 Usage:
-    uv run olist_eval/run.py --checkpoint checkpoints/vrp20_kool/epoch_20000.pt
+    uv run scripts/eval_sp.py --checkpoint artifacts/checkpoints/vrp20_kool/epoch_20000.pt
 
 Parameters (edit at top of file or pass as CLI flags):
     --checkpoint        path to model checkpoint (.pt)
-    --instance_dir      folder with Olist instance files (default: eval_sets/)
+    --instance_dir      folder with Olist instance files (default: artifacts/instances/)
     --clusters          cluster IDs to evaluate, e.g. 1 2 3 4 5 (default: all)
     --time_limit        OR-Tools time limit in seconds per instance (default: 10)
     --embed_dim         model embed_dim, must match checkpoint (default: 128)
     --device            cpu or cuda (default: cpu)
     --seed              random seed (default: 42)
-    --log               output CSV path (default: olist_eval/results.csv)
+    --log               output CSV path (default: artifacts/results/olist_sp.csv)
 """
 
 import argparse
@@ -80,21 +80,21 @@ def eval_cluster(coords, demands, vehicle_capacity, agent, time_limit, device,
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint",    type=str,   required=True)
-    parser.add_argument("--instance_dir",  type=str,   default="eval_sets")
+    parser.add_argument("--instance_dir",  type=str,   default="artifacts/instances")
     parser.add_argument("--clusters",      type=int,   nargs="+", default=[1, 2, 3, 4, 5])
     parser.add_argument("--time_limit",    type=int,   default=10,
                         help="OR-Tools seconds per instance")
     parser.add_argument("--embed_dim",     type=int,   default=128)
     parser.add_argument("--device",        type=str,   default="cpu")
     parser.add_argument("--seed",          type=int,   default=42)
-    parser.add_argument("--log",           type=str,   default="olist_eval/results.csv")
+    parser.add_argument("--log",           type=str,   default="artifacts/results/olist_sp.csv")
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
     device       = args.device
     instance_dir = Path(args.instance_dir)
     log_path     = Path(args.log)
-    log_path.parent.mkdir(exist_ok=True)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Load model
     agent = NazariAgent(args.checkpoint, embed_dim=args.embed_dim, device=device)

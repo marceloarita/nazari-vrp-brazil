@@ -6,7 +6,7 @@ The resulting SPKDE object is used during model training (distribution="kde").
 
 Output:
     models/sp_kde.pkl       — fitted SPKDE object (used by trainer)
-    eda/plots/05_kde.png    — real data vs KDE samples (visual check)
+    artifacts/figures/eda/05_kde.png — real data vs KDE samples (visual check)
 
 Run:
     uv run eda/05_fit_kde.py
@@ -25,9 +25,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.kde_utils import SPKDE
 
 DATA_DIR  = Path("data/olist")
-PLOTS_DIR = Path("eda/plots")
+PLOTS_DIR = Path("artifacts/figures/eda")
 MODELS_DIR = Path("models")
-PLOTS_DIR.mkdir(exist_ok=True)
+PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 MODELS_DIR.mkdir(exist_ok=True)
 
 # ------------------------------------------------------------------

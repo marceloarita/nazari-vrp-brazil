@@ -141,7 +141,7 @@ eda/05_fit_kde.py                   → KDE fitting, bandwidth selection via CV
 scripts/train_kaggle.py             → VRP10/20 training — all baseline variants (Kaggle T4)
 scripts/train_kaggle_kde.py         → VRP20 KDE training — 3 variants
 
-olist_eval/run.py                   → Zero-shot + OR-Tools eval on SP instances
+scripts/eval_sp.py                  → Zero-shot + OR-Tools eval on SP instances
 scripts/eval.py                     → Eval against OR-Tools on synthetic instances
 ```
 
