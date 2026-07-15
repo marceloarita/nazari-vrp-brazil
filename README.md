@@ -144,13 +144,15 @@ The gap jumps from 19.5% on synthetic uniform instances to **63.8%** on real SP 
 
 ---
 
-## Part II — São Paulo (Next Steps)
+## Part II — São Paulo
+
+📄 **[Read Part II → Learning São Paulo: Per-Zone Routing](PART_II.md)**
+
+Part I isolated the bottleneck — distribution shift, not model capacity. Part II attacks it by training on the target distribution directly:
 
 - **Per-zone training:** train a separate model per zone on that zone's real customers, with a leakage-free train/test split, so the training distribution matches the eval exactly.
 - **Decoding & local search:** best-of-N sampling and 2-opt post-processing to push the learned policy closer to optimal.
 - **Scaling:** larger instances (VRP50 and beyond).
-
-*A dedicated Part II writeup will follow as results land.*
 
 ---
 

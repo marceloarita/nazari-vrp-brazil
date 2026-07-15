@@ -60,23 +60,37 @@ def fig_split(X, depot):
     n = len(X); rng = np.random.default_rng(SEED)
     test_size = max(int(round(TEST_FRAC*n)), 20)
     perm = rng.permutation(n); test_idx, train_idx = perm[:test_size], perm[test_size:]
-    fig, ax = plt.subplots(1, 2, figsize=(15, 7.2))
-    ax[0].scatter(X[train_idx, 0], X[train_idx, 1], s=8, alpha=0.30, color="#95a5a6", label=f"train pool ({len(train_idx):,})")
-    ax[0].scatter(X[test_idx, 0], X[test_idx, 1], s=16, alpha=0.75, color="#e74c3c", edgecolors="none", label=f"held-out test ({test_size})")
-    ax[0].scatter(*depot, s=320, marker="s", color="#D4651C", edgecolors="k", linewidth=1.2, zorder=6, label="centroid (depot)")
-    ax[0].set_title(f"C5 / Centro-Sul — train/test split ({TEST_FRAC:.0%} held out)", fontsize=13)
-    ax[0].legend(fontsize=11, loc="upper right")
-    inst = rng.choice(test_idx, size=20, replace=False)
-    ax[1].scatter(X[train_idx, 0], X[train_idx, 1], s=6, alpha=0.12, color="#bbbbbb")
-    ax[1].scatter(X[test_idx, 0], X[test_idx, 1], s=12, alpha=0.20, color="#e74c3c")
-    ax[1].scatter(X[inst, 0], X[inst, 1], s=90, color="#c0392b", edgecolors="k", linewidth=0.8, zorder=5, label="20 customers of one instance")
-    ax[1].scatter(*depot, s=320, marker="s", color="#D4651C", edgecolors="k", linewidth=1.2, zorder=6, label="depot")
-    ax[1].set_title("One example VRP20 instance (sampled from the test pool only)", fontsize=13)
-    ax[1].legend(fontsize=11, loc="upper right")
+
+    TRAIN = "#95a5a6"   # grey
+    VAL   = "#2980b9"   # blue — validation, distinct from the orange depot
+    DEPOT = "#D4651C"   # orange
+
+    fig, ax = plt.subplots(1, 3, figsize=(18, 6.2))
+
+    # Panel 0 — the split: training pool + held-out test + depot
+    ax[0].scatter(X[train_idx, 0], X[train_idx, 1], s=8, alpha=0.30, color=TRAIN, label=f"train pool ({len(train_idx):,})")
+    ax[0].scatter(X[test_idx, 0], X[test_idx, 1], s=12, alpha=0.55, color=VAL, edgecolors="none", label=f"held-out test ({test_size})")
+    ax[0].scatter(*depot, s=70, marker="s", color=DEPOT, edgecolors="k", linewidth=1.0, zorder=6, label="depot (centroid)")
+    ax[0].set_title(f"Train / test split — {TEST_FRAC:.0%} held out", fontsize=12)
+    ax[0].legend(fontsize=10, loc="upper right")
+
+    # Panels 1-2 — two validation instances recombined from the held-out pool
+    for j, axi in enumerate([ax[1], ax[2]], start=1):
+        inst = rng.choice(test_idx, size=20, replace=False)
+        axi.scatter(X[test_idx, 0], X[test_idx, 1], s=8, alpha=0.12, color=VAL)          # faint held-out pool
+        axi.scatter(X[inst, 0], X[inst, 1], s=45, color=VAL, edgecolors="k", linewidth=0.5, zorder=5, label="20 customers")
+        axi.scatter(*depot, s=70, marker="s", color=DEPOT, edgecolors="k", linewidth=1.0, zorder=6, label="depot")
+        axi.set_title(f"Validation instance #{j}  (20 of {test_size} held-out)", fontsize=12)
+        axi.legend(fontsize=10, loc="upper right")
+
     for a in ax:
         a.set_xlim(-0.05, 1.05); a.set_ylim(-0.05, 1.05); a.set_aspect("equal")
-        a.set_xlabel("x (lng normalized)"); a.set_ylabel("y (lat normalized)")
-    plt.suptitle(f"Zone C5: {n:,} customers  |  train={len(train_idx):,}  test={test_size}  (disjoint — no leakage)", fontsize=14, y=1.02)
+        a.set_xlabel("x (lng)"); a.set_ylabel("y (lat)")
+    plt.suptitle(
+        f"Zone C5: {n:,} customers → {len(train_idx):,} train / {test_size} held-out — "
+        f"the held-out set recombines into many VRP20 validation instances",
+        fontsize=13, y=1.02,
+    )
     plt.tight_layout(); fig.savefig(OUT/"train_test_split.png", dpi=120, bbox_inches="tight"); plt.close(fig)
     print("saved train_test_split.png")
 
