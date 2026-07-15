@@ -41,11 +41,12 @@ def load_instance(path: Path, device: str):
 
 
 def eval_cluster(coords, demands, vehicle_capacity, agent, time_limit, device,
-                 cached_ortools=None, instance_path=None):
+                 cached_ortools=None, instance_path=None, samples=1):
     """Run model + OR-Tools on a batch of instances. Returns (dist_model, dist_ortools).
 
     If cached_ortools is provided, OR-Tools is skipped and cached results are used.
     If instance_path is provided, newly computed OR-Tools results are saved back to the .pt file.
+    samples: 1 = greedy decoding; N>1 = sample N tours per instance and keep the best.
     """
 
     # OR-Tools (skip if cached)
@@ -66,11 +67,17 @@ def eval_cluster(coords, demands, vehicle_capacity, agent, time_limit, device,
             data["t_ortools_s"]  = t_ort
             torch.save(data, instance_path)
 
-    # Model (greedy)
+    # Model: greedy (samples=1) or best-of-N sampling (samples>1)
     env = VRPEnvironment(coords, demands, vehicle_capacity=vehicle_capacity)
     t0 = time.time()
     with torch.no_grad():
-        _, rewards = rollout(agent, env, greedy=True)
+        if samples <= 1:
+            _, rewards = rollout(agent, env, greedy=True)
+        else:
+            rewards = None
+            for _ in range(samples):
+                _, r = rollout(agent, env, greedy=False)  # stochastic
+                rewards = r if rewards is None else torch.maximum(rewards, r)
     t_mdl = time.time() - t0
 
     dist_model = -rewards
@@ -87,6 +94,8 @@ def main():
     parser.add_argument("--time_limit",    type=int,   default=10,
                         help="OR-Tools seconds per instance")
     parser.add_argument("--embed_dim",     type=int,   default=128)
+    parser.add_argument("--samples",       type=int,   default=1,
+                        help="1 = greedy decoding; N>1 = sample N tours/instance and keep the best")
     parser.add_argument("--device",        type=str,   default="cpu")
     parser.add_argument("--seed",          type=int,   default=42)
     parser.add_argument("--log",           type=str,   default="artifacts/results/olist_sp.csv")
@@ -103,6 +112,7 @@ def main():
     print(f"Checkpoint : {args.checkpoint}")
     print(f"Device     : {device}")
     print(f"OR-Tools   : {args.time_limit}s/instance")
+    print(f"Decoding   : {'greedy' if args.samples <= 1 else f'sample best-of-{args.samples}'}")
     print(f"Clusters   : {args.clusters}\n")
 
     rows = []
@@ -129,7 +139,7 @@ def main():
         cached = meta.get("dist_ortools")
         dist_model, dist_ortools, t_mdl, t_ort = eval_cluster(
             coords, demands, vehicle_capacity, agent, args.time_limit, device,
-            cached_ortools=cached, instance_path=path,
+            cached_ortools=cached, instance_path=path, samples=args.samples,
         )
 
         gap = gap_percent(dist_model, dist_ortools)

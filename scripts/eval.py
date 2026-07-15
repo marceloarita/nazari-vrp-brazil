@@ -39,6 +39,8 @@ def main():
     parser.add_argument("--time_limit", type=int, default=10, help="OR-Tools time limit (s), ad-hoc only")
     # Other
     parser.add_argument("--embed_dim", type=int, default=128)
+    parser.add_argument("--samples", type=int, default=1,
+                        help="1 = greedy decoding; N>1 = sample N tours/instance and keep the best")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--log", type=str, default="artifacts/results/eval_log.csv")
     parser.add_argument("--plot", action="store_true")
@@ -79,16 +81,23 @@ def main():
 
     t0 = time.time()
     with torch.no_grad():
-        _, rewards_nazari = rollout(nazari_agent, env_nazari, greedy=True)
+        if args.samples <= 1:
+            _, rewards_nazari = rollout(nazari_agent, env_nazari, greedy=True)
+        else:
+            rewards_nazari = None
+            for _ in range(args.samples):
+                _, r = rollout(nazari_agent, env_nazari, greedy=False)  # stochastic
+                rewards_nazari = r if rewards_nazari is None else torch.maximum(rewards_nazari, r)
     t_nazari = time.time() - t0
 
     # --- Results ---
     dist_nazari = -rewards_nazari
     gap = gap_percent(dist_nazari, dist_ortools)
+    label = "Nazari (greedy)" if args.samples <= 1 else f"Nazari (best-{args.samples})"
 
     print(f"{'':20s}  {'mean':>8s}  {'std':>8s}  {'min':>8s}  {'max':>8s}  {'time':>8s}")
     print(f"{'OR-Tools':20s}  {dist_ortools.mean():8.4f}  {dist_ortools.std():8.4f}  {dist_ortools.min():8.4f}  {dist_ortools.max():8.4f}  {t_ortools:7.2f}s")
-    print(f"{'Nazari (greedy)':20s}  {dist_nazari.mean():8.4f}  {dist_nazari.std():8.4f}  {dist_nazari.min():8.4f}  {dist_nazari.max():8.4f}  {t_nazari:7.2f}s")
+    print(f"{label:20s}  {dist_nazari.mean():8.4f}  {dist_nazari.std():8.4f}  {dist_nazari.min():8.4f}  {dist_nazari.max():8.4f}  {t_nazari:7.2f}s")
     print(f"\nGap% (Nazari vs OR-Tools): {gap.mean():.2f}%  (lower is better)")
 
     # --- Log ---
