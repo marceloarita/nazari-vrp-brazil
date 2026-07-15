@@ -118,11 +118,12 @@ class AttentionVRP(nn.Module):
             log_probs, h, c = model.step(static_emb, dynamic, last_node, h, c, mask)
     """
 
-    def __init__(self, embed_dim=128, dropout=0.1):
+    def __init__(self, embed_dim=128, static_dim=2, dropout=0.1):
         super().__init__()
         self.embed_dim = embed_dim
+        self.static_dim = static_dim
 
-        self.static_encoder = StaticEncoder(2, embed_dim)
+        self.static_encoder = StaticEncoder(static_dim, embed_dim)
         self.dynamic_encoder = DynamicEncoder(2, embed_dim)
         self.lstm = nn.LSTMCell(embed_dim, embed_dim)
         self.attention = Attention(embed_dim)
@@ -137,10 +138,12 @@ class AttentionVRP(nn.Module):
 
     def encode(self, static):
         """
-        Encode static node features (coordinates). Call once per episode.
+        Encode static node features. Call once per episode.
 
         Args:
-            static: (B, N+1, 2) — node coordinates; index 0 = depot
+            static: (B, N+1, static_dim) — node features; [:, :, :2] = coordinates
+                    (index 0 = depot). A 3rd channel, when present, is the KDE
+                    density feature log p(x, y).
 
         Returns:
             static_emb: (B, embed_dim, N+1)

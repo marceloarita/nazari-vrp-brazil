@@ -110,7 +110,9 @@ class Trainer:
         self.run_name = run_name
         self.wandb_project = wandb_project
 
-        self.actor = AttentionVRP(embed_dim=embed_dim).to(device)
+        # static_dim = 2 (coords) or 3 (coords + density), inferred from the pool feature width
+        static_dim = int(pool.shape[1]) if pool is not None else 2
+        self.actor = AttentionVRP(embed_dim=embed_dim, static_dim=static_dim).to(device)
 
         # Kool 2019: frozen copy of actor used as baseline, updated via t-test
         if baseline == "kool":

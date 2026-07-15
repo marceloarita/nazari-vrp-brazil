@@ -34,9 +34,9 @@ def generate_instance(n_customers, vehicle_capacity=1.0, distribution="uniform",
         idx = np.random.choice(len(pool), size=n_customers, replace=False)
         customer_xy = pool[idx]
         if depot is not None:
-            depot_xy = np.asarray(depot, dtype=np.float32).reshape(1, 2)
+            depot_xy = np.asarray(depot, dtype=np.float32).reshape(1, -1)
         else:
-            depot_xy = np.random.uniform(0, 1, (1, 2)).astype(np.float32)
+            depot_xy = np.random.uniform(0, 1, (1, customer_xy.shape[1])).astype(np.float32)
         coords = np.vstack([depot_xy, customer_xy])
     else:
         raise ValueError(f"Unknown distribution: {distribution!r}")
@@ -125,8 +125,9 @@ class VRPEnvironment:
         B = self.B
         batch = torch.arange(B, device=self.device)
 
-        prev_coords = self.static[batch, self.current_node]
-        next_coords = self.static[batch, actions]
+        # Only x,y (first 2 channels) matter for distance; a 3rd channel (density) is ignored here.
+        prev_coords = self.static[batch, self.current_node, :2]
+        next_coords = self.static[batch, actions, :2]
         self.total_dist += torch.norm(next_coords - prev_coords, dim=-1)
 
         is_customer = actions != DEPOT_IDX
@@ -178,7 +179,7 @@ class VRPEnvironment:
 
     def render(self, batch_idx: int = 0, title: str | None = None) -> None:
         """Plot nodes and route for one instance in the batch."""
-        coords = self.static[batch_idx].cpu().numpy()
+        coords = self.static[batch_idx, :, :2].cpu().numpy()
         tour = [0] + [t[batch_idx].item() for t in self.tour] if self.tour else []
         fig, ax = plt.subplots(figsize=(7, 7))
         fig.patch.set_facecolor("#f8f9fa")

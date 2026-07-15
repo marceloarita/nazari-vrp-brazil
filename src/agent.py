@@ -1,6 +1,5 @@
 import torch
 from .model import AttentionVRP
-from .utils import load_checkpoint
 
 
 class RandomAgent:
@@ -33,11 +32,17 @@ class NazariAgent:
     Delegates encode(), init_hidden(), and step() directly to the model.
     """
 
-    def __init__(self, checkpoint_path, embed_dim=128, device="cpu"):
-        self.model = AttentionVRP(embed_dim=embed_dim).to(device)
-        self.device = device
-        load_checkpoint(checkpoint_path, self.model)
+    def __init__(self, checkpoint_path, embed_dim=128, device="cpu", static_dim=None):
+        # Auto-detect the static feature dim from the checkpoint (2 = coords only,
+        # 3 = coords + density) so eval works without passing a flag.
+        ckpt = torch.load(checkpoint_path, map_location="cpu")
+        state = ckpt["actor_state"]
+        if static_dim is None:
+            static_dim = state["static_encoder.conv.weight"].shape[1]
+        self.model = AttentionVRP(embed_dim=embed_dim, static_dim=static_dim).to(device)
+        self.model.load_state_dict(state)
         self.model.eval()
+        self.device = device
 
     def encode(self, static):
         return self.model.encode(static)
