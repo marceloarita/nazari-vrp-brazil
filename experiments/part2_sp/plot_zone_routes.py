@@ -62,6 +62,7 @@ def main():
     demands = data["demands"].to(device)
     cap     = float(data["vehicle_capacity"])
     B       = coords.size(0)
+    raw_dem = (demands * 30).round().cpu().numpy()   # SP VRP20 capacity=30; recover raw demand 1-9 for labels
 
     # --- OR-Tools tours (cache into the .pt for reuse) ---
     if "ortools_tours" in data:
@@ -128,7 +129,7 @@ def main():
         ]
         for col, (tour, title) in enumerate(cols):
             ax = axes[row][col]
-            plot_route(cn, tour, ax=ax, title=title)
+            plot_route(cn, tour, ax=ax, title=title, demands=raw_dem[idx])
             ax.set_xlim(cx - half, cx + half)
             ax.set_ylim(cy - half, cy + half)
             ax.set_aspect("equal")

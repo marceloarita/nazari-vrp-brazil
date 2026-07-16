@@ -4,15 +4,17 @@ import matplotlib.pyplot as plt
 ROUTE_COLORS = ["#e74c3c", "#27ae60", "#2980b9", "#00bcd4", "#9b59b6", "#e67e22"]
 
 
-def plot_route(coords, tour, ax=None, title=None):
+def plot_route(coords, tour, ax=None, title=None, demands=None):
     """
     Plot a single VRP route.
 
     Args:
-        coords: (N+1, 2) numpy array — index 0 = depot
-        tour:   list of ints — full visit sequence, e.g. [0, 3, 5, 0, 2, 0]
-        ax:     matplotlib Axes (creates a new figure if None)
-        title:  optional string
+        coords:  (N+1, 2) numpy array — index 0 = depot
+        tour:    list of ints — full visit sequence, e.g. [0, 3, 5, 0, 2, 0]
+        ax:      matplotlib Axes (creates a new figure if None)
+        title:   optional string
+        demands: optional (N+1,) array — if given, each customer is labelled with its
+                 demand (raw integer) instead of its node index; depot is unlabelled.
 
     Returns:
         ax: matplotlib Axes
@@ -52,7 +54,8 @@ def plot_route(coords, tour, ax=None, title=None):
         ax.scatter(coords[i, 0], coords[i, 1],
                    s=300, color="#F5C49A", edgecolors="#F5C49A",
                    linewidth=1.5, zorder=3)
-        ax.text(coords[i, 0], coords[i, 1], str(i),
+        label = str(int(round(float(demands[i])))) if demands is not None else str(i)
+        ax.text(coords[i, 0], coords[i, 1], label,
                 ha="center", va="center",
                 fontsize=9, fontweight="bold", color="#1a1a1a", zorder=4)
 

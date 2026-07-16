@@ -61,6 +61,7 @@ for cfg in CONFIGS:
     ortools_tours = data["ortools_tours"]
     cap           = float(data["vehicle_capacity"])
     B             = coords.size(0)
+    raw_dem       = (demands * cap).round().cpu().numpy()   # raw demand (1-9) per node for labels
 
     agent = NazariAgent(cfg["checkpoint"], embed_dim=cfg["embed_dim"], device=DEVICE)
 
@@ -103,11 +104,12 @@ for cfg in CONFIGS:
 
     for row, idx in enumerate(idxs):
         coords_np = coords[idx].cpu().numpy()
-        plot_route(coords_np, greedy_tours[idx], ax=axes[row][0],
+        dem = raw_dem[idx]
+        plot_route(coords_np, greedy_tours[idx], ax=axes[row][0], demands=dem,
                    title=f"Nazari greedy   dist = {dist_greedy[idx]:.3f}   gap = {gap_greedy[idx]:.1f}%")
-        plot_route(coords_np, best_tours[idx], ax=axes[row][1],
+        plot_route(coords_np, best_tours[idx], ax=axes[row][1], demands=dem,
                    title=f"Nazari best-{SAMPLES}   dist = {dist_best[idx]:.3f}   gap = {gap_best[idx]:.1f}%")
-        plot_route(coords_np, ortools_tours[idx], ax=axes[row][2],
+        plot_route(coords_np, ortools_tours[idx], ax=axes[row][2], demands=dem,
                    title=f"OR-Tools   dist = {dist_ortools[idx]:.3f}")
 
     fig.suptitle(
