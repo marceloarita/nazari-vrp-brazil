@@ -1,6 +1,6 @@
 # Part II — Learning São Paulo: Per-Zone Routing
 
-> Continuation of [Part I](README.md), which reproduced Nazari et al. (2018) and exposed the cost of distribution shift.
+> Continuation of [Part I](PART_I.md), which reproduced Nazari et al. (2018) and exposed the cost of distribution shift. See the [project overview](README.md) for both parts.
 
 ## The challenge of real data
 
@@ -144,6 +144,31 @@ How the gap to OR-Tools shrank at each step, from the Part I zero-shot baseline 
 
 From **36.6% → 3.8%** on the hardest zone, without ever changing the model architecture: the wins came from the training distribution (H1), the learning signal (POMO), and a cheap geometric cleanup (2-opt). Final result: **3.8% from OR-Tools**, at a fraction of its runtime.
 
-<img src="docs/images/progression_routes_c5.png" width="100%">
+<img src="docs/images/progression_routes_c5.png" width="90%">
 
 *Zone C5 (held-out) — the same three instances routed by each stage of the progression. Left: the zero-shot uniform model sprawls with crossing legs (~40–67% gap). Middle: the per-zone Nazari model, best-of-128 (~8%). Right: POMO best-of-128 polished with 2-opt (1.6–6.0%). Node labels are customer demands; the square is the depot.*
+
+---
+
+## Conclusion
+
+Three takeaways from teaching the model São Paulo:
+
+- **Zero-shot doesn't transfer, but the right training data closes most of the gap.** A policy trained on synthetic `Uniform[0,1]²` instances collapses on real deliveries (36.6% gap under best-of-128). Simply training on the target zone's own customers — same architecture, same hyperparameters — cuts that to 6.6%. The barrier was never model capacity; it was the distribution the model was asked to learn.
+
+- **Neural routing is astonishingly cheap next to OR-Tools, for a small optimality price.** OR-Tools searches for seconds per instance to reach its (near-optimal) solution. The neural policy produces a route in a single forward pass — milliseconds — and best-of-128 is just 128 such passes, trivially parallel on a GPU. The trade is a few percent of route length for orders of magnitude less compute at solve time. In a weekly-batch setting where you re-plan thousands of routes, that trade is very often worth taking.
+
+- **Small mathematical tricks pay off, at zero cost.** 2-opt is a handful of lines and no training. Applied on top of the best model it shaved ~1.7–1.9 points off every variant (POMO: 5.5% → 3.8%). Cheap, deterministic, and always safe by the triangle inequality — the kind of free lunch worth keeping.
+
+## Limitations
+
+This is a small, deliberately scoped experiment, not a production benchmark:
+
+- **One zone tested rigorously.** All numbers are for zone **C5** (the hardest, most non-uniform zone). The bet is that what works on the hardest zone carries over to the easier ones, but the other zones were **not** evaluated with the same rigor — that remains future work.
+- **Small held-out set.** Every gap is averaged over **32 held-out VRP20 instances**. It is enough to see clear, consistent trends, but not to claim tight confidence intervals.
+- **Fixed problem size and depot.** VRP20 with a single fixed centroid depot and a fixed capacity. Variable fleet sizes, time windows, real road distances (vs. Euclidean), and multiple depots are all out of scope here.
+- **OR-Tools as the reference, not ground truth.** Gaps are measured against OR-Tools under a time limit, which is itself a heuristic — a strong but not provably optimal baseline.
+
+## Acknowledgements
+
+As in Part I, all model training was done on **NVIDIA Tesla T4 GPUs** provided free of charge by [Kaggle](https://www.kaggle.com). Without Kaggle's free GPU quota this project would not have been feasible.
