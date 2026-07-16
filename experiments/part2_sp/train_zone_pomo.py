@@ -35,8 +35,8 @@ CLUSTER_ID       = 5          # C5 / Centro-Sul
 N_CUSTOMERS      = 20
 VEHICLE_CAPACITY = 30
 BATCH_SIZE       = 64         # effective batch = 64 × 20 starts = 1280 trajectories/step
-N_EPOCHS         = 10_000
-SAVE_EVERY       = 1_000
+N_EPOCHS         = 20_000
+SAVE_EVERY       = 2_000
 LR               = 1e-4
 MAX_GRAD_NORM    = 2.0
 BASELINE         = "pomo"
