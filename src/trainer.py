@@ -13,7 +13,7 @@ from .model import AttentionVRP
 from .utils import save_checkpoint
 
 
-def rollout(actor, env, greedy=False):
+def rollout(actor, env, greedy=False, start_nodes=None):
     """
     Run a full episode batch using the actor policy.
 
@@ -40,17 +40,22 @@ def rollout(actor, env, greedy=False):
     # Upper bound: n_customers visits + at most n_customers depot returns
     max_steps = static.size(1) * 2
 
-    for _ in range(max_steps):
+    for t in range(max_steps):
         log_probs, h, c = actor.step(static_emb, dynamic, current_node, h, c, mask)
 
-        if greedy:
-            actions = log_probs.argmax(dim=-1)
+        if t == 0 and start_nodes is not None:
+            # POMO: force a distinct first customer per trajectory. This is not a
+            # policy decision, so its log-prob is excluded from the gradient.
+            actions = start_nodes
+            step_log_p = torch.zeros(B, device=device)
         else:
-            actions = Categorical(logits=log_probs).sample()
+            if greedy:
+                actions = log_probs.argmax(dim=-1)
+            else:
+                actions = Categorical(logits=log_probs).sample()
+            # Each episode accumulates log-probs until its own termination; steps after done are zeroed
+            step_log_p = log_probs[torch.arange(B, device=device), actions] * (~done).float()
 
-        # Each episode accumulates log-probs until its own termination; steps after done are zeroed
-        step_log_p = log_probs[torch.arange(B, device=device), actions]
-        step_log_p = step_log_p * (~done).float()
         log_prob_steps.append(step_log_p)
 
         (_, dynamic, mask), _, step_done = env.step(actions)
@@ -71,6 +76,8 @@ class Trainer:
     baseline="none"   — vanilla REINFORCE (Williams 1992), no baseline
     baseline="ema"    — exponential moving average of past rewards (Nazari 2018)
     baseline="greedy" — greedy rollout baseline (Kool 2019)
+    baseline="kool"   — frozen greedy rollout, updated via paired t-test (Kool 2019)
+    baseline="pomo"   — N multi-start rollouts per instance; shared mean baseline (Kwon 2020)
 
     GPU optimizations:
       - Data generated directly on device (no CPU→GPU transfer for uniform distribution)
@@ -126,8 +133,58 @@ class Trainer:
         self.use_amp = device == "cuda"
         self.scaler = torch.amp.GradScaler("cuda") if self.use_amp else None
 
+    def _train_step_pomo(self):
+        """
+        POMO step (Kwon et al. 2020): for each instance, roll out N trajectories,
+        each forced to start from a different customer, and use the per-instance
+        mean reward as the baseline. No frozen copy, no critic.
+        """
+        N = self.n_customers
+        B = self.batch_size
+        coords, demands = generate_batch(
+            B, N, vehicle_capacity=self.vehicle_capacity,
+            distribution=self.distribution, pool=self.pool, depot=self.depot, device=self.device,
+        )
+        # Replicate each instance N times (one trajectory per forced start node)
+        coords  = coords.repeat_interleave(N, dim=0)     # (B*N, N+1, feat)
+        demands = demands.repeat_interleave(N, dim=0)
+        starts  = torch.arange(1, N + 1, device=self.device).repeat(B)   # (B*N,) customers 1..N
+        env = VRPEnvironment(coords, demands, vehicle_capacity=self.vehicle_capacity)
+
+        with torch.amp.autocast("cuda", enabled=self.use_amp):
+            log_probs_sum, rewards = rollout(self.actor, env, greedy=False, start_nodes=starts)
+            R = rewards.view(B, N)
+            baseline = R.mean(dim=1, keepdim=True)          # shared per-instance baseline
+            advantage = (R - baseline).reshape(-1)          # (B*N,)
+            actor_loss = -(advantage * log_probs_sum).mean()
+
+        self.actor_opt.zero_grad()
+        if self.use_amp:
+            self.scaler.scale(actor_loss).backward()
+            self.scaler.unscale_(self.actor_opt)
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+            self.scaler.step(self.actor_opt)
+            self.scaler.update()
+        else:
+            actor_loss.backward()
+            nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+            self.actor_opt.step()
+
+        return {
+            "actor_loss":     actor_loss.item(),
+            "critic_loss":    0.0,
+            "reward_mean":    rewards.mean().item(),
+            "reward_std":     rewards.std().item(),
+            "tour_length":    (-rewards).mean().item(),
+            "baseline_value": baseline.mean().item(),
+            "advantage_mean": advantage.mean().item(),
+            "advantage_std":  advantage.std().item(),
+        }
+
     def train_step(self):
         """Run one training iteration over a fresh batch of instances."""
+        if self.baseline == "pomo":
+            return self._train_step_pomo()
         coords, demands = generate_batch(
             self.batch_size,
             self.n_customers,
